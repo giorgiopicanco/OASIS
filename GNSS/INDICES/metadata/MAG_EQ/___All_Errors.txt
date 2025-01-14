@@ -1,0 +1,19 @@
+CorrelationId: 184b7ba1-bfe2-45ad-88cc-205523bf7ccc
+UTC DateTime: 05/16/2024 16:20:01
+
+The following files/folders have not been downloaded
+0. MAG_EQ/2024/02/2024_02.EQ
+1. MAG_EQ/2024/03/2024_03.EQ
+2. MAG_EQ/2024/04
+3. MAG_EQ/2024/05
+4. MAG_EQ/2024/06
+5. MAG_EQ/2024/07
+6. MAG_EQ/2024/08
+7. MAG_EQ/2024/09
+8. MAG_EQ/2024/10
+9. MAG_EQ/2024/11
+10. MAG_EQ/2024/12
+11. MAG_EQ/2025
+12. MAG_EQ/2026
+13. MAG_EQ/2027
+14. MAG_EQ/mag_eq.cmd
