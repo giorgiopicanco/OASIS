@@ -1,3 +1,8 @@
+<p align="center">
+  <img src="logo_oasis.png" alt="OASIS Logo" width="300"/>
+</p>
+
+
 # OASIS: Open-Access System for Ionospheric Studies
 This repository contains the OASIS software, designed to automate the processing of GNSS data. The script is a powerful tool for researchers working with large datasets of GNSS observations and ionospheric indices such as DTEC, ROTI, and SIDX.
 
@@ -10,19 +15,11 @@ Key Features
 
 Requirements
 
-    Bash shell (tested on Linux/Unix)
-    GNU Parallel for parallel processing
-    GNSS and ionospheric analysis tools
+
 
 How to Use
 
-    Configure the input variables in the script, such as:
-        Input and output directories
-        GNSS station list
-        Time interval for processing
-    Run the script in a terminal using the command:
 
-./RUN_OASIS.sh
 
 Results will be saved in the specified output directory.
 
