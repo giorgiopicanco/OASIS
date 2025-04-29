@@ -1,0 +1,15 @@
+# Arquivos compilados Python
+__pycache__/
+*.pyc
+
+# Dados grandes e binários
+*.shp
+*.shx
+*.dbf
+*.zip
+*.nc
+*.tar
+*.gz
+
+# Arquivos de sistema
+.DS_Store
