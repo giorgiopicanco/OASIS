@@ -1,0 +1,38 @@
+cff-version: 1.2.0
+message: "If you use OASIS in your research, please cite this work."
+title: "Introducing OASIS: An Open-Access System for Ionospheric Studies"
+authors:
+  - family-names: Picanço
+    given-names: Giorgio A. S.
+  - family-names: Fagundes
+    given-names: Paulo R.
+  - family-names: Prol
+    given-names: Fabricio S.
+  - family-names: Denardini
+    given-names: Clezio M.
+  - family-names: Mendoza
+    given-names: Luciano P. O.
+  - family-names: Pillat
+    given-names: Valdir G.
+  - family-names: Rodrigues
+    given-names: Irapuan
+  - family-names: Christovam
+    given-names: Adriano L.
+  - family-names: Meza
+    given-names: Amalia M.
+  - family-names: Natali
+    given-names: Maria P.
+  - family-names: Romero-Hernández
+    given-names: Esmeralda
+  - family-names: Aguirre-Gutierrez
+    given-names: Rogelio A.
+  - family-names: Agyei-Yeboah
+    given-names: Emmanuel
+  - family-names: Muella
+    given-names: Maria T. A. H.
+date-released: 2025-04-30
+version: "1.0.0"
+repository-code: https://github.com/giorgiopicanco/OASIS
+license: MIT
+doi: ""
+type: software
