@@ -34,5 +34,9 @@ date-released: 2025-04-30
 version: "1.0.0"
 repository-code: https://github.com/giorgiopicanco/OASIS
 license: MIT
-doi: ""
 type: software
+abstract: >
+  OASIS is a modular open-access system for processing GNSS data and computing ionospheric indices,
+  including ROTI, ΔTEC, and SIDX. It allows the detection and correction of cycle slips and outliers,
+  arc-wise geometry-free leveling, and scientific-quality ionospheric monitoring. The system is independent
+  of external DCB or VTEC products and supports reproducible ionospheric research using GPS and GLONASS data.
