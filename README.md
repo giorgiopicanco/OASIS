@@ -79,7 +79,7 @@ python3 main.py
 
 ---
 
-## License and Citation
+## License
 
 The OASIS toolbox is open-source and free to use under the MIT license.
 
@@ -90,13 +90,13 @@ Picanço, G.A.S., Fagundes, P.R., Prol, F.S., Denardini, C.M., Mendoza, L.P.O., 
 Meza, A.M., Natali, M.P., Romero-Hernández, E., Aguirre-Gutierrez, R., Agyei-Yeboah, E., & Muella, M.T.A.H. (2025).  
 *Introducing OASIS: An Open-Access System for Ionospheric Studies*. GPS Solutions. *(submitted)*
 
-## 📑 Cite This Work
+## Cite This Work
 
 <details>
 <summary><strong>APA</strong></summary>
 
-Picanço, G. A. S., Fagundes, P. R., Prol, F. S., Denardini, C. M., Mendoza, L. P. O., Pillat, V. G., Rodrigues, I., Christovam, A. L.,  
-Meza, A. M., Natali, M. P., Romero-Hernández, E., Aguirre-Gutierrez, R., Agyei-Yeboah, E., & Muella, M. T. A. H. (2025).  
+Picanço, G.A.S., Fagundes, P.R., Prol, F.S., Denardini, C.M., Mendoza, L.P.O., Pillat, V.G., Rodrigues, I., Christovam, A.L.,  
+Meza, A.M., Natali, M.P., Romero-Hernández, E., Aguirre-Gutierrez, R., Agyei-Yeboah, E., & Muella, M.T.A.H. (2025).  
 *Introducing OASIS: An Open-Access System for Ionospheric Studies*. GPS Solutions. *(submitted)*
 
 </details>
@@ -104,7 +104,9 @@ Meza, A. M., Natali, M. P., Romero-Hernández, E., Aguirre-Gutierrez, R., Agyei-
 <details>
 <summary><strong>ABNT</strong></summary>
 
-PICANÇO, G. A. S. et al. Introducing OASIS: An Open-Access System for Ionospheric Studies. *GPS Solutions*, 2025.  
+PICANÇO, G.A.S.; FAGUNDES, P.R.; PROL, F.S.; DENARDINI, C.M.; MENDOZA, L.P.O.; PILLAT, V.G.; RODRIGUES, I.;  
+CHRISTOVAM, A.L.; MEZA, A.M.; NATALI, M.P.; ROMERO-HERNÁNDEZ, E.; AGUIRRE-GUTIERREZ, R.; AGYEI-YEBOAH, E.;  
+MUELLA, M.T.A.H. Introducing OASIS: An Open-Access System for Ionospheric Studies. *GPS Solutions*, 2025.  
 Manuscrito submetido para publicação.
 
 </details>
