@@ -67,7 +67,7 @@ python3 main.py
 - `DTEC_CALC.py` – Calculates ΔTEC index.
 - `SIDX_CALC.py` – Calculates the Sudden Ionospheric Disturbance Index.
 - `SP3_INTERPOLATE.py` – Extracts and organizes SP3 orbit data.
-- `linear_combinations.py`, `gnss_freqs.py`, `settings.py`, etc. – Support modules for GNSS frequency handling and coordinate transformation.
+- `linear_combinations.py`, `gnss_freqs.py`, `settings.py`, `glonass_channels.dat`, etc. – Support modules for GNSS frequency handling and coordinate transformation.
 
 ---
 
@@ -79,18 +79,9 @@ python3 main.py
 
 ---
 
-## License
-
-The OASIS toolbox is open-source and free to use under the MIT license.
+## Cite This Work
 
 If you use this software in your research, please cite:
-
-**Citation:**  
-Picanço, G.A.S., Fagundes, P.R., Prol, F.S., Denardini, C.M., Mendoza, L.P.O., Pillat, V.G., Rodrigues, I., Christovam, A.L.,  
-Meza, A.M., Natali, M.P., Romero-Hernández, E., Aguirre-Gutierrez, R., Agyei-Yeboah, E., & Muella, M.T.A.H. (2025).  
-*Introducing OASIS: An Open-Access System for Ionospheric Studies*. GPS Solutions. *(submitted)*
-
-## Cite This Work
 
 <details>
 <summary><strong>APA</strong></summary>
@@ -126,3 +117,9 @@ Accessed: April 30, 2025.
 
 For questions or contributions, please visit:
 [https://github.com/giorgiopicanco/OASIS](https://github.com/giorgiopicanco/OASIS)
+
+---
+
+## License
+
+The OASIS toolbox is open-source and free to use under the MIT license.
