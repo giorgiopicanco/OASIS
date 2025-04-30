@@ -2,6 +2,8 @@
   <img src="img/logo_bar.png" alt="OASIS Logo" width="900"/>
 </p>
 
+<p align="center"><em>Version 1.0.0 – submitted to GPS Solutions</em></p>
+
 # OASIS: Open-Access System for Ionospheric Studies
 
 **OASIS** is a modular and open-access Python toolbox for processing multi-frequency GNSS data and computing ionospheric indices. It was developed to overcome limitations of proprietary or non-standardized tools and to promote scientific transparency and reproducibility in ionospheric research.
@@ -24,8 +26,20 @@ OASIS automates the detection and correction of cycle slips and outliers, perfor
 ## Installation Requirements
 
 - Python 3.8 or higher
-- Required libraries:
-  - `numpy`, `pandas`, `matplotlib`, `scipy`, `astropy`, `georinex`, `pyproj`
+- Required libraries (see `requirements.txt` for exact versions):
+  - `numpy`
+  - `pandas`
+  - `matplotlib`
+  - `scipy`
+  - `astropy`
+  - `georinex`
+  - `pyproj`
+
+To install all dependencies at once:
+
+```bash
+pip install -r requirements.txt
+```
 
 ---
 
@@ -115,7 +129,7 @@ Accessed: April 30, 2025.
 
 ## Contact
 
-For questions or contributions, please visit:
+For questions or contributions, please visit:  
 [https://github.com/giorgiopicanco/OASIS](https://github.com/giorgiopicanco/OASIS)
 
 ---
