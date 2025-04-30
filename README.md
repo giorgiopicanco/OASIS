@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo_new.png" alt="OASIS Logo" width="300"/>
+  <img src="logo_bar.png" alt="OASIS Logo" width="300"/>
 </p>
 
 # OASIS: Open-Access System for Ionospheric Studies
