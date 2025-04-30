@@ -1,0 +1,14 @@
+# Set default behavior to automatically normalize line endings
+* text=auto
+
+# Treat Python scripts as text, enforce LF endings
+*.py text eol=lf
+
+# Treat shell scripts as text
+*.sh text eol=lf
+
+# Treat images and binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.pdf binary

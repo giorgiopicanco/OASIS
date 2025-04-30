@@ -1,15 +1,29 @@
-# Arquivos compilados Python
+# Byte-compiled / optimized / DLL files
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
 
-# Dados grandes e binários
-*.shp
-*.shx
-*.dbf
+# Caches and logs
+*.log
+*.tmp
+
+# Jupyter Notebook Checkpoints
+.ipynb_checkpoints/
+
+# Virtual environments
+venv/
+.env/
+
+# Data files
 *.zip
-*.nc
 *.tar
 *.gz
+*.nc
+*.h5
+*.shp
+*.dbf
+*.shx
 
-# Arquivos de sistema
+# System files
 .DS_Store
+Thumbs.db
