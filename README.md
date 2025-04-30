@@ -2,8 +2,6 @@
   <img src="img/logo_bar.png" alt="OASIS Logo" width="900"/>
 </p>
 
-<p align="center"><em>Version 1.0.0 – submitted to GPS Solutions</em></p>
-
 # OASIS: Open-Access System for Ionospheric Studies
 
 **OASIS** is a modular and open-access Python toolbox for processing multi-frequency GNSS data and computing ionospheric indices. It was developed to overcome limitations of proprietary or non-standardized tools and to promote scientific transparency and reproducibility in ionospheric research.
