@@ -127,8 +127,11 @@ Accessed: April 30, 2025.
 
 ## Contact
 
+Developed by Giorgio Picanço (Ph.D. in Space Geophysics).
+  
 For questions or contributions, please visit:  
-[https://github.com/giorgiopicanco/OASIS](https://github.com/giorgiopicanco/OASIS)
+[https://github.com/giorgiopicanco/OASIS](https://github.com/giorgiopicanco/OASIS)  
+or email: giorgiopicanco@gmail.com
 
 ---
 
