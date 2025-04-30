@@ -1,4 +1,4 @@
-<p align="right">
+<p align="center">
   <img src="logo_new.png" alt="OASIS Logo" width="300"/>
 </p>
 
