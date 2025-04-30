@@ -85,7 +85,38 @@ The OASIS toolbox is open-source and free to use under the MIT license.
 
 If you use this software in your research, please cite:
 
-**Picanço, G.A.S. et al. (2025). Introducing OASIS: an Open-Access System for Ionospheric Studies. GPS Solutions.** *(submitted)*
+**Citation:**  
+Picanço, G.A.S., Fagundes, P.R., Prol, F.S., Denardini, C.M., Mendoza, L.P.O., Pillat, V.G., Rodrigues, I., Christovam, A.L.,  
+Meza, A.M., Natali, M.P., Romero-Hernández, E., Aguirre-Gutierrez, R., Agyei-Yeboah, E., & Muella, M.T.A.H. (2025).  
+*Introducing OASIS: An Open-Access System for Ionospheric Studies*. GPS Solutions. *(submitted)*
+
+## 📑 Cite This Work
+
+<details>
+<summary><strong>APA</strong></summary>
+
+Picanço, G. A. S., Fagundes, P. R., Prol, F. S., Denardini, C. M., Mendoza, L. P. O., Pillat, V. G., Rodrigues, I., Christovam, A. L.,  
+Meza, A. M., Natali, M. P., Romero-Hernández, E., Aguirre-Gutierrez, R., Agyei-Yeboah, E., & Muella, M. T. A. H. (2025).  
+*Introducing OASIS: An Open-Access System for Ionospheric Studies*. GPS Solutions. *(submitted)*
+
+</details>
+
+<details>
+<summary><strong>ABNT</strong></summary>
+
+PICANÇO, G. A. S. et al. Introducing OASIS: An Open-Access System for Ionospheric Studies. *GPS Solutions*, 2025.  
+Manuscrito submetido para publicação.
+
+</details>
+
+<details>
+<summary><strong>GitHub Repository</strong></summary>
+
+Picanço, G. A. S. (2025). **OASIS: Open-Access System for Ionospheric Studies** [Software]. GitHub.  
+Available at: https://github.com/giorgiopicanco/OASIS  
+Accessed: April 30, 2025.
+
+</details>
 
 ---
 
