@@ -137,4 +137,5 @@ or email: giorgiopicanco@gmail.com
 
 ## License
 
-The OASIS toolbox is open-source and free to use under the MIT license.
+The OASIS toolbox is open-source and free to use under the Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0) license.
+You are free to use, adapt, and share this software for non-commercial purposes, as long as proper credit is given.
