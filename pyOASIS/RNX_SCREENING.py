@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 from datetime import datetime
 import matplotlib.pyplot as plt
 import os
@@ -15,88 +14,76 @@ from pyOASIS import screening_settings
 from pyOASIS import settings
 import pyOASIS
 
-# Definindo o caminho do diretório principal
-#diretorio_principal = "/media/debian-giorgio/DATA/GNSS_DATA/RINEX/PROCESSED"
-
-def RNXScreening(destination_directory):
-    
-    # Lista de arquivos dentro do diretório .RNX1
+def RNXScreening(destination_directory):    
+    # List of files in the .RNX1 directory
     filess = os.listdir(destination_directory)
 
-    # Filtrar apenas os arquivos .MAP
+    # Filter only the .RNX1 files
     files = [file_ for file_ in filess if file_.endswith("RNX1")]
     
     for file in files:
-
-        # f = sys.argv[1]
-        # destination_directory = sys.argv[2]
         f = os.path.join(destination_directory, file)
     
-        # Redirecionar stderr para /dev/null
+        # Redirect stderr to /dev/null
         sys.stderr = open(os.devnull, 'w')    
         
-        # Obtendo o nome do arquivo
+        # Get the file name
         g = os.path.basename(f)
         
         ano = g[13:17]
         doy = g[9:12]
         estacao = g[0:4]
         sat = g[5:8]
-        # print(ano,doy,estacao,sat)
-        #
-        # sys.exit()
         
-        # Variáveis e Parâmetros
+        # Variables and Parameters
         h1 = 0
-        n_horas = 24 #horas
-        int1 = 120 #minutos
-        # f1 = 1575.42 * 10**6
-        # f2 = 1227.60 * 10**6
+        n_horas = 24 # hours
+        int1 = 120 # minutes
         
         # Accessing the frequencies of the GPS system
         gps_freqs = gnss_freqs.FREQUENCY[gnss_freqs.GPS]
         f1 = gps_freqs[1]
         f2 = gps_freqs[2]
-        f5 = gps_freqs[5]
+        f5 = gps_freqs[5]    
+              
+        # Calculating the frequencies of the GLONASS system (glonass_channels.dat)
+        # To obtain the GLONASS frequencies (code 'R'):
+        file_name = os.path.join(pyOASIS.__path__[0], 'glonass_channels.dat')
         
-        
-        # Definir o nome do arquivo
-        file_name = pyOASIS.__path__[0]+'/glonass_channels.dat'
-        
-        # Ler o arquivo para um DataFrame com os nomes das colunas definidos
+        # Read the file into a DataFrame with predefined column names
         df_slots = pd.read_csv(file_name, sep=' ', header=None, names=['Slot', 'Channel'])
         glonass_frequencies = gnss_freqs.FREQUENCY[gnss_freqs.GLO]
         
-        # Lista para armazenar os dados
+        # List to store the data
         data = []
         
-        # Iterar sobre cada linha do DataFrame
+        # Iterate over each row in the DataFrame
         for index, row in df_slots.iterrows():
             satellite = row['Slot']
             k = row['Channel']
             row_data = [satellite]
         
             for channel, frequency in glonass_frequencies.items():
-                if callable(frequency):  # Verifica se é uma função lambda
+                if callable(frequency):  # Check if it is a lambda function
                     freq_value = frequency(k)
                 else:
                     freq_value = frequency
                 formatted_freq = f"{freq_value:.1f}"
                 row_data.append(formatted_freq)
         
-            # Adicionar os dados da linha à lista de dados
+            # Add the row data to the data list
             data.append(row_data)
         
-        # Converter a lista de listas em um DataFrame pandas
+        # Convert the list of lists into a pandas DataFrame
         glo_freqs = pd.DataFrame(data, columns=['Satellite', 'fr1', 'fr2', 'fr3'])
         
-        # Verificando a classe do satélite e ajustando os valores de f1, f2, f5
+        # Check the satellite class and adjust f1, f2, f5 accordingly
         if sat.startswith('G'):
             f1 = f1
             f2 = f2
             f5 = f5
         elif sat.startswith('R'):
-            # Localizar a linha onde 'Satellite' é igual a 'sat'
+            # Locate the row where 'Satellite' matches 'sat'
             sat_row = glo_freqs.loc[glo_freqs['Satellite'] == sat]
         
             if not sat_row.empty:
@@ -104,10 +91,9 @@ def RNXScreening(destination_directory):
                 f2 = float(sat_row['fr2'].values[0])
                 f5 = float(sat_row['fr3'].values[0])
         else:
-            f1 = f2 = f5 = None  # Ou valores padrão
+            f1 = f2 = f5 = None  # Or default values        
         
-        
-        # Inicializando listas para armazenar os valores de cada variável de todos os arquivos
+        # Initialize lists to store values of each variable from all files
         date = []
         time = []
         mjd = []
@@ -134,13 +120,10 @@ def RNXScreening(destination_directory):
         obs_Cb = []
         obs_Cc = []
         
-        # for arquivo in arquivos:
         caminho_arquivo = f
-        
-        print("aqui", caminho_arquivo)
-        # print("Conteúdo do arquivo", arquivo)
+
         with open(caminho_arquivo, 'r') as f:
-            # Lendo o cabeçalho do arquivo
+            # Reading the file header
             header = f.readline().strip().split('\t')
             obs_La_header = header[6]
             obs_Lb_header = header[7]
@@ -148,17 +131,12 @@ def RNXScreening(destination_directory):
             obs_Ca_header = header[9]
             obs_Cb_header = header[10]
             obs_Cc_header = header[11]
-            #
-            # print(obs_La_header,obs_Lb_header, obs_Lc_header, obs_Ca_header, obs_Cb_header, obs_Cc_header)
-        
-        
-        
-            # Lendo cada linha de dados do arquivo
+
+            # Reading each data line from the file
             for linha in f:
-                # print(linha)
-                # Dividindo a linha em colunas
-                colunas = linha.strip().split('\t')  # Supondo que as colunas estejam separadas por tabulação (\t)
-                # Associando cada coluna com o cabeçalho correspondente
+                # Splitting the line into columns
+                colunas = linha.strip().split('\t')  # Assuming tab-separated columns
+                # Mapping each column to its corresponding header
                 registro = {
                     'date': colunas[0],
                     'time': colunas[1],
@@ -186,9 +164,8 @@ def RNXScreening(destination_directory):
                     'obs_Cb': obs_Cb_header,
                     'obs_Cc': obs_Cc_header
                 }
-                # Adicionando os valores de cada variável às respectivas listas
-                # timestamp.append(registro['timestamp'])
-        
+                
+                # Appending each variable to its corresponding list
                 date.append(registro['date'])
                 time.append(registro['time'])
                 mjd.append(registro['mjd'])
@@ -213,18 +190,9 @@ def RNXScreening(destination_directory):
                 obs_Lc.append(registro['obs_Lc'])
                 obs_Ca.append(registro['obs_Ca'])
                 obs_Cb.append(registro['obs_Cb'])
-                obs_Cc.append(registro['obs_Cc'])
+                obs_Cc.append(registro['obs_Cc'])        
         
-        
-        # sat = 'G'
-        # # Filtrando os satélites
-        # if sat:
-        #     satellites_to_plot = [sv for sv in np.unique(satellites) if sv.startswith(sat)]
-        # else:
-        #     satellites_to_plot = np.unique(satellites)
-        
-        
-        # Inicializando listas para armazenar os valores de cada variável de todos os arquivos
+        # Initializing lists to store filtered values for each variable
         date_filtered = []
         time_filtered = []
         mjd_filtered = []
@@ -280,8 +248,8 @@ def RNXScreening(destination_directory):
         obs_Ca_filtered = []
         obs_Cb_filtered = []
         obs_Cc_filtered = []
-        
-        
+               
+        # Filtering the values for the selected satellite
         for idx in indices:
             date_filtered.append(date[idx])
             time_filtered.append(time[idx])
@@ -307,11 +275,9 @@ def RNXScreening(destination_directory):
             obs_Lc_filtered.append(obs_Lc[idx])
             obs_Ca_filtered.append(obs_Ca[idx])
             obs_Cb_filtered.append(obs_Cb[idx])
-            obs_Cc_filtered.append(obs_Cc[idx])
-        
-        
-        
-        # Construindo um DataFrame com os dados filtrados para cada satélite
+            obs_Cc_filtered.append(obs_Cc[idx])    
+                
+        # Building a DataFrame with the filtered data for the selected satellite
         data = {
             'date': date_filtered,
             'time2': time_filtered,
@@ -341,25 +307,21 @@ def RNXScreening(destination_directory):
         }
         
         df = pd.DataFrame(data)
-        # print(df)
-        # Convertendo as colunas relevantes para float
+
+        # Convert relevant columns to float
         columns_to_convert = ['L1', 'L2', 'L5', 'P1', 'P2', 'P5']
         df[columns_to_convert] = df[columns_to_convert].astype(float)
         
-        # Substituir -999999.999 por NaN nas colunas relevantes
-        df.replace(-999999.999, np.nan, inplace=True)
+        # Replace -999999.999 with NaN in relevant columns
+        df.replace(-999999.999, np.nan, inplace=True)        
         
-        
-        # Convertendo as colunas 'date' e 'time' para o tipo datetime e depois concatenando
+        # Convert 'date' and 'time' columns to datetime and combine them
         df['timestamp'] = pd.to_datetime(df['date'] + ' ' + df['time2'])
         
-        # Convertendo a coluna 'timestamp' para o tipo datetime, se ainda não estiver
-        # df['timestamp'] = pd.to_datetime(df['timestamp'])
-        
-        # # Extraindo apenas o tempo de 'timestamp' e armazenando em uma nova coluna 'time'
+        # Extract only the time from 'timestamp' and store in a new column 'time'
         df['time'] = df['timestamp'].dt.time
         
-        # Convertendo as listas em arrays numpy e garantindo que os tipos de dados sejam float64
+        # Convert lists to numpy arrays and ensure they are float64
         L1_array = np.nan_to_num(np.array(df['L1'].tolist(), dtype=np.float64), nan=-999999.999)
         L2_array = np.nan_to_num(np.array(df['L2'].tolist(), dtype=np.float64), nan=-999999.999)
         L5_array = np.nan_to_num(np.array(df['L5'].tolist(), dtype=np.float64), nan=-999999.999)
@@ -368,7 +330,7 @@ def RNXScreening(destination_directory):
         P2_array = np.nan_to_num(np.array(df['P2'].tolist(), dtype=np.float64), nan=-999999.999)
         P5_array = np.nan_to_num(np.array(df['P5'].tolist(), dtype=np.float64), nan=-999999.999)
         
-        # Substituindo -999999.999 por "NaN" em P1_array
+        # Replace -999999.999 with NaN in the arrays
         L1_array[L1_array == -999999.999] = np.nan
         L2_array[L2_array == -999999.999] = np.nan
         L5_array[L5_array == -999999.999] = np.nan
@@ -377,57 +339,49 @@ def RNXScreening(destination_directory):
         P2_array[P2_array == -999999.999] = np.nan
         P5_array[P5_array == -999999.999] = np.nan
         
-        # Calculando a combinação de Melbourne-Wubbena para o satélite atual
+        # Compute the Melbourne-Wübbena combination for the current satellite
         MW_combination = screening_settings.melbourne_wubbena_combination(f1, f2, L1_array, L2_array, P1_array, P2_array)
         MW_combination2 = screening_settings.melbourne_wubbena_combination(f1, f5, L1_array, L5_array, P1_array, P5_array)
-        
-        
+              
         IFL_combination = screening_settings.iono_free_phase_combination(f1, f2, L1_array, L2_array)
         IFP_combination = screening_settings.iono_free_range_combination(f1, f2, P1_array, P2_array)
-        
-        # # for value in IFL_combination:
-        # #     print(value)
-        
-        
-        # Adicionando a combinação de Melbourne-Wubbena, Ionosphere-Free (phase) e Ionosphere-Free (code) ao DataFrame
+
+        # Add MW, ionosphere-free phase, and ionosphere-free code combinations to the DataFrame
         df['MW'] = MW_combination
-        df['MW2'] = MW_combination2
+        df['MW2'] = MW_combination2        
         
+        # Assuming df['cs_flag'] is a pandas Series
+        arcos = []  # List to store observation arcs
+        arc_atual = []  # Temporary list to store current observation arc
         
-        # Suponho que df['cs_flag'] seja uma série do pandas
-        arcos = []  # Lista para armazenar os arcos de observação
-        arc_atual = []  # Lista temporária para armazenar o arco de observação atual
-        
-        # Iterar sobre todos os elementos de df['cs_flag']
+        # Iterate over all elements in df['cs_flag']
         for idx, value in enumerate(df['cs_flag']):
             if value == 'S':
-                # Se o valor atual for 'S', verificar se o arco atual está vazio
-                # Isso evita adicionar arcos vazios caso haja 'S's consecutivos
+                # If the current value is 'S', check if the current arc is not empty
+                # This avoids appending empty arcs in case of consecutive 'S'
                 if arc_atual:
                     arcos.append(arc_atual)
                     arc_atual = []  # Reseta a lista do arco atual
             else:
-                # Se o valor não for 'S', adicionar o índice ao arco atual
+                # If the value is not 'S', add index to the current arc
                 arc_atual.append(idx)
         
-        # Adicionar o último arco se ele não estiver vazio
+        # Append the last arc if it's not empty
         if arc_atual:
             arcos.append(arc_atual)
         
         print()
         
-        # Imprimir informações de cada arco e classificá-los
+        # Print information about each arc and classify them
         for i, arc in enumerate(arcos):
             start_index = arc[0]
             end_index = arc[-1]
             num_observations = len(arc)
-            status = "Mantido" if num_observations >= 15 else "Descartado"
-            print(f"Arco {i + 1}: {df['timestamp'][start_index]} - {df['timestamp'][end_index]}, Start = {start_index}, End = {end_index}, "
+            status = "Kept" if num_observations >= 15 else "Discarded"
+            print(f"Arc {i + 1}: {df['timestamp'][start_index]} - {df['timestamp'][end_index]}, Start = {start_index}, End = {end_index}, "
                 f"Obs. = {num_observations}, Status = {status}")
-        
-        # print(len(arcos))
-        # sys.exit()
-        # Separar os dados MW_combination em cada arco
+
+        # Separate MW_combination data for each arc
         arc_data = []
         arc_idx = []
         polynomial_fits = []
@@ -444,49 +398,45 @@ def RNXScreening(destination_directory):
             if len(arc_values) < 15:
                 continue
         
-            # Ajustar um polinômio de segundo grau
+            # Fit a 3rd-degree polynomial
             x_values = np.arange(len(arc_values))
             polynomial_fit = screening_settings.fit_polynomial(x_values, arc_values, 3)
         
-            # Armazenar os dados do arco e o ajuste do polinômio
+            # Store arc values and the polynomial fit
             arc_data.append(arc_values)
             arc_idx.append(arc_timestamps)
             polynomial_fits.append(polynomial_fit)
         
-            # Imprimir informações do arco
+            # Print arc information
             num_observations = len(arc_values)
             num_points_fit = len(polynomial_fit)
         
-            print(f"Arco {i + 1}: Índice inicial = {start}, Índice final = {end}, "
-                f"Número de observações = {num_observations}, Número de pontos do ajuste = {num_points_fit}")
-        
-        #
-        # sys.exit()
-        
-        # Filtrar os arcos que passaram no critério de comprimento
+            print(f"Arc {i + 1}: Start index = {start}, End index = {end}, "
+                f"Number of observations = {num_observations}, Number of fit points = {num_points_fit}")
+
+        # Filter arcs that meet the minimum length criterion
         arcos_validos = [arc for arc in arcos if len(MW_combination[arc[0]:arc[-1]+1]) >= 15]
         
-        # Se houver apenas um arco válido, duplicar para que haja dois arcos válidos
+        # If there's only one valid arc, duplicate it to ensure at least two
         if len(arcos_validos) == 1:
             arcos_validos.append(arcos_validos[0])
         
-        # Definir o número máximo de colunas por linha
+        # Set the maximum number of columns per row
         max_colunas_por_linha = 2
         
-        # Calcular o número de linhas e colunas necessárias
+        # Calculate the number of rows and columns needed
         num_arcos_validos = len(arcos_validos)
         
         num_linhas = (num_arcos_validos - 1) // max_colunas_por_linha + 1
         num_colunas = min(num_arcos_validos, max_colunas_por_linha)
         
-        # Criar a grade de subplots
+        # Create the subplot grid
         fig, axes = plt.subplots(num_linhas, num_colunas, figsize=(6*num_colunas, 5*num_linhas))
         
-        all_all = []
-        
+        all_all = []        
         all_index = []
         
-        # Iterar sobre cada arco válido e plotar os dados
+        # Iterate over each valid arc and plot the data
         for i, (arc, ax) in enumerate(zip(arcos_validos, axes.flatten()), start=1):
         
             start = arc[0]
@@ -496,90 +446,80 @@ def RNXScreening(destination_directory):
             time = df.index[arc]
         
             arc_values = MW_combination[start:end+1]
-            # arc_values = IFL_combination[start:end+1]
             arc_timestamps = df['timestamp'][start:end+1]
             arc_values2 = arc_values
         
-            # Calcular o tempo decorrido em segundos desde o primeiro timestamp do arco
+            # Calculate elapsed time in seconds from the first timestamp in the arc
             x = (arc_timestamps - arc_timestamps.iloc[0]).dt.total_seconds()
         
             y_rescaled = screening_settings.rescale_data(arc_values)
             delta_y = np.diff(y_rescaled, prepend=np.nan)
         
-            # Ajustar um polinômio apenas nos valores válidos (excluindo np.nan)
+            # Fit a polynomial only to valid values (excluding NaNs)
             p = Polynomial.fit(x[1:], delta_y[1:], 3)
         
-            delta_y_fit = p(x)  # Valores ajustados pelo polinômio
-            # residuals = abs(delta_y - delta_y_fit)  # Calcular resíduos
-            residuals = delta_y - delta_y_fit  # Calcular resíduos
+            delta_y_fit = p(x)  # Polynomial-fitted values
+            residuals = delta_y - delta_y_fit  # Compute residuals
         
-            mini_arcos = []  # Lista para armazenar os arcos de observação
+            mini_arcos = []  # List to store mini-arcs
             mini_arcos_mantidos = []
-            mini_arc_atual = []  # Lista temporária para armazenar o arco de observação atual
+            mini_arc_atual = []  # Temporary list to store the current mini-arc
             signo_anterior = None
         
-            # Iterar sobre todos os elementos de residuals
+            # Iterate over all residual values
             for idx, value in enumerate(residuals):
-                if signo_anterior is None:  # Se for o primeiro valor, inicializa o signo_anterior
+                if signo_anterior is None:  # If it's the first value, initialize the sign
                     signo_anterior = np.sign(value)
         
-                # Verifica se o sinal mudou
+                # Check if the sign has changed
                 if np.sign(value) != signo_anterior:
-                    # Se o arco atual não estiver vazio, adiciona-o à lista de mini-arcos
+                    # If the current mini-arc is not empty, add it to the list
                     if mini_arc_atual:
                         mini_arcos.append(mini_arc_atual)
-                    mini_arc_atual = []  # Inicia um novo mini-arco
+                    mini_arc_atual = []  # Start a new mini-arc
         
-                # Adiciona o índice ao mini-arco atual
+                # Add the index to the current mini-arc
                 mini_arc_atual.append(idx)
         
-                # Atualiza o sinal anterior
+                # Update the previous sign
                 signo_anterior = np.sign(value)
         
-            # Lista para armazenar os miniarcos que passam no critério positivo
+            # List to store mini-arcs that meet the minimum observation requirement
             mini_arcos_mantidos = []
         
-            # Definindo uma flag para controlar a saída do loop
+            # Flag to control early termination of the loop
             should_break = False
         
             print()
             print("Looking for mini cycle-slips in L1-L2 pair:")
             print()
         
-            # Loop externo
+            # Outer loop
             for mini_i, mini_arc in enumerate(mini_arcos):
                 mini_start_index = mini_arc[0]
                 mini_end_index = mini_arc[-1]
                 num_observations = len(mini_arc)
-                status = "Mantido" if num_observations >= 4 else "Descartado"
-                print(f"Mini-arco {mini_i + 1}: Start = {mini_start_index}, End = {mini_end_index}, Obs. = {num_observations}, Status = {status}")
+                status = "Kept" if num_observations >= 4 else "Discarded"
+                print(f"Mini-arc {mini_i + 1}: Start = {mini_start_index}, End = {mini_end_index}, Obs. = {num_observations}, Status = {status}")
         
-                # Verifica se o número de observações é menor que 4
+                # If the number of observations is less than 4, set the flag and continue
                 if num_observations <= 4:
-                    # Atualiza a flag para indicar que devemos sair dos loops
                     should_break = True
                     continue
-                    # break  # Sai do loop interno
         
-                # Se o miniarco tem pelo menos 4 observações, adiciona-o à lista de miniarcos mantidos
+                # If the mini-arc has at least 4 observations, keep it
                 mini_arcos_mantidos.append(mini_arc)
-            # sys.exit()
-            # Se a flag indicar que devemos sair dos loops, saímos do loop externo também
+
+            # If the flag indicates we should exit the loops, break from the outer loop as well
             if should_break:
                 continue
-        #
-            # Imprimir os miniarcos mantidos
-            print("Miniarcos mantidos:")
+        
+            # Print the kept mini-arcs
+            print("Kept mini-arcs:")
             for i, mini_arc in enumerate(mini_arcos_mantidos):
-                print(f"Mini-arco {i + 1}: {mini_arc}")
-        
-        
-            print('TESTE OK')
-        
-        
-        
-        
-            # Cálculo dos quartis e IQR para identificação de outliers
+                print(f"Mini-arc {i + 1}: {mini_arc}")
+
+            # Quartile and IQR calculation for identifying outliers
             Q1 = np.nanpercentile(residuals, 15)
             Q3 = np.nanpercentile(residuals, 85)
             IQR = Q3 - Q1
@@ -587,70 +527,50 @@ def RNXScreening(destination_directory):
             threshold2 = 2
         
             outlier_mask = (residuals < Q1 - threshold2 * IQR) | (residuals > Q3 + threshold2 * IQR)
-            high_residuals_mask = residuals > 1  # Máscara para resíduos altos
-            other_residuals_mask = ~(outlier_mask | high_residuals_mask)  # Máscara para os demais resíduos
+            high_residuals_mask = residuals > 1  # Mask for high residuals
+            other_residuals_mask = ~(outlier_mask | high_residuals_mask)  # Mask for remaining residuals
         
-            # Ajustar um polinômio de segundo grau
+            # Fit a third-degree polynomial
             x_values = np.arange(len(arc_values))
             polynomial_fit = screening_settings.fit_polynomial(x_values, arc_values, 3)
         
-            # Plotar os dados do arco
+            # Plot arc data
             ax.scatter(arc_timestamps, arc_values, label='Dados', color='blue', s=15)
         
-            # Plotar o ajuste polinomial
-            ax.plot(arc_timestamps, polynomial_fit, label='Ajuste', color='red')
+            # Plot polynomial fit
+            ax.plot(arc_timestamps, polynomial_fit, label='Ajuste', color='red')        
         
+            # Format x-axis as hour labels
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))       
         
-            # Definir o formato do eixo x como horas
-            ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
-        
-        
-            # Obtendo o número do arco válido correspondente
+            # Get the corresponding arc number
             num_arc_valido = arcos.index(arc) + 1
         
-            # Adicionar o número do arco válido ao título
+            # Add arc number to subplot title
             ax.set_title(f"Arco {num_arc_valido}")
         
-            # Adicionar subplots menores dentro dos subplots principais
+            # Add inset subplots to the main subplot
             ax_fit = ax.inset_axes([0.6, 0.6, 0.35, 0.35])
             ax_residuals = ax.inset_axes([0.6, 0.15, 0.35, 0.35])
         
-            # # Cores para cada mini-arco
+            # Colors for each mini-arc
             cores = ['lightblue', 'yellow', 'lime', 'green', 'purple', 'navy', 'blue','lime', 'green', 'navy']
-        
-        
-        
-            all_out = []  # Inicializar a lista 'all_out' antes do loop
+
+            all_out = []  # Initialize 'all_out' list before the loop
             all__all = []
-            # Inicialize a lista para armazenar os índices de resíduos altos e outliers
-            all_indices = []
-        
-            # Lista para armazenar todos os índices
-            todos_indices = []
-        
-        
-        
+            all_indices = []    # List to store indices of high residuals and outliers
+            todos_indices = []  # List to store all indices     
+
         
             for i, (mini_start, mini_end) in enumerate(mini_arcos_mantidos):
-        
-        
-        
-        
                 mini_residuals = residuals[mini_start:mini_end]
                 mini_time = time[mini_start:mini_end]
-        
-                # print(len(mini_residuals))
-        
-        
-        
+
                 try:
-                    mini_fit = screening_settings.fit_polynomial(mini_time, mini_residuals, 3)
-        
+                    mini_fit = screening_settings.fit_polynomial(mini_time, mini_residuals, 3)        
                     new_mini_residuals = abs(mini_residuals-mini_fit)
-        
-        
-        
-                    # Cálculo dos quartis e IQR para identificação de outliers
+
+                    # Quartile and IQR calculation for identifying outliers
                     mini_Q1 = np.nanpercentile(new_mini_residuals, 15)
                     mini_Q3 = np.nanpercentile(new_mini_residuals, 85)
                     mini_IQR = mini_Q3 - mini_Q1
@@ -658,68 +578,52 @@ def RNXScreening(destination_directory):
                     mini_threshold2 = 1.3
         
                     mini_outlier_mask = (new_mini_residuals < mini_Q1 - mini_threshold2 * mini_IQR) | (new_mini_residuals > mini_Q3 + mini_threshold2 * mini_IQR)
-                    mini_high_residuals_mask = new_mini_residuals > 0.0002  # Máscara para resíduos altos
-                    mini_other_residuals_mask = ~(mini_outlier_mask | mini_high_residuals_mask)  # Máscara para os demais resíduos
+                    mini_high_residuals_mask = new_mini_residuals > 0.0002  # Mask for high residuals
+                    mini_other_residuals_mask = ~(mini_outlier_mask | mini_high_residuals_mask)  # Mask for remaining residuals
         
                     micro_residuals = abs(np.diff(new_mini_residuals, prepend=np.nan))
         
-                    # Calcule os quartis
+                    # Compute quartiles
                     q1_micro = np.nanpercentile(micro_residuals, 15)
                     q3_micro = np.nanpercentile(micro_residuals, 85)
         
-                    # Calcule a amplitude interquartil
+                    # Compute interquartile range
                     iqr_micro = q3_micro - q1_micro
         
                     micro_threshold2 = 1.3
         
-                    # Defina os limites para identificar outliers
+                    # Define the bounds for identifying outliers
                     lower_bound_micro = q1_micro - micro_threshold2 * iqr_micro
                     upper_bound_micro = q3_micro + micro_threshold2 * iqr_micro
         
-                    # Encontre outliers
+                    # Identify outliers
                     outliers_micro = (micro_residuals < lower_bound_micro) | (micro_residuals > upper_bound_micro)
-        
-        
-                    micro_high_residuals_mask = micro_residuals > 0.00002  # Máscara para resíduos altos
-        
-        
+
+                    micro_high_residuals_mask = micro_residuals > 0.00002  # Mask for high residuals
+
                     ax_fit.scatter(mini_time, abs(micro_residuals), color=cores[i], s=2, label='Out.', marker='o')
                     ax_fit.scatter(mini_time[micro_high_residuals_mask], micro_residuals[micro_high_residuals_mask], color='red', s=2, label='Out.', marker='o')
                     ax_fit.scatter(mini_time[outliers_micro], abs(micro_residuals[outliers_micro]), color='red', s=2, label='Out.', marker='o')
-        
-        
-        
-        
-                    # Convertendo os índices locais para índices globais - mini
+
+                    # Convert local indices to global indices – mini
                     global_high_residuals_indices = np.where(mini_high_residuals_mask)[0] + mini_start
                     global_outlier_indices = np.where(mini_outlier_mask)[0] + mini_start
         
-                    # Convertendo os índices locais para índices globais - micro
+                    # Convert local indices to global indices – micro
                     global_high_residuals_indices_micro = np.where(micro_high_residuals_mask)[0] + mini_start
                     global_outlier_indices_micro = np.where(outliers_micro)[0] + mini_start
-        
-        
-                    # ax_residuals.scatter(mini_time, new_mini_residuals, color=cores[i], s=1, label='Out.', marker='o')
+    
                     ax_residuals.scatter(mini_time[mini_outlier_mask], new_mini_residuals[mini_outlier_mask], edgecolor='red', facecolor='none', s=2, label='Out.', marker='o')
                     ax_residuals.scatter(mini_time[outliers_micro], new_mini_residuals[outliers_micro], edgecolor='red', facecolor='none', s=2, label='Out.', marker='o')
                     ax_residuals.scatter(mini_time[micro_high_residuals_mask], new_mini_residuals[micro_high_residuals_mask], edgecolor='pink', facecolor='none', s=2, label='Out.', marker='o')
         
-                    print('OKOKOKO')
-        
-                    # Listas para armazenar os índices de resíduos altos e outliers
+                    # Lists to store the indices of high residuals and outliers
                     indices_residuos_altos_mini = start + global_high_residuals_indices
                     indices_outliers_mini = start + global_outlier_indices
                     indices_residuos_altos_micro = start + global_high_residuals_indices_micro
                     indices_outliers_micro = start + global_outlier_indices_micro
         
-        
-                    # Lista para armazenar os índices de resíduos altos e outliers
-                    indices_residuos_altos_mini = start + global_high_residuals_indices
-                    indices_outliers_mini = start + global_outlier_indices
-                    indices_residuos_altos_micro = start + global_high_residuals_indices_micro
-                    indices_outliers_micro = start + global_outlier_indices_micro
-        
-                    # Adiciona os índices à lista geral
+                    # Add the indices to the general list
                     todos_indices.append({
                         'residuos_altos_mini': indices_residuos_altos_mini,
                         'outliers_mini': indices_outliers_mini,
@@ -727,31 +631,17 @@ def RNXScreening(destination_directory):
                         'outliers_micro': indices_outliers_micro
                     })
         
-        
-        
                 except:
-                    pass  # Ignorar e continuar o loop
-                    # print('ERRO')
+                    pass  # Ignore and continue the loop
         
-        
-        
-        
-        
-            # Remover subplots não utilizados
+            # Remove unused subplots
             for i in range(num_arcos_validos, num_linhas*num_colunas):
                 fig.delaxes(axes.flatten()[i])
-        
-        
-            # plt.show()
-        
-        
-        
-        
-        
-            # Criar uma cópia da lista todos_indices antes de estender todos_indices_vertical
+
+            # Create a copy of the all_indexes list before extending it to all_index_vertical
             todos_indices_copy = todos_indices.copy()
         
-            # # Agora você pode acessar todos os índices fora do loop
+            # Access all indices outside the loop
             for indices in todos_indices_copy:
                 print(f"Índices para iteração {i}:")
                 print("Resíduos Altos para Mini-Arco:", indices['residuos_altos_mini'])
@@ -760,121 +650,82 @@ def RNXScreening(destination_directory):
                 print("Outliers para Micro-Arco:", indices['outliers_micro'])
                 print()
         
-        
-        
-            # Concatena todos os índices em uma lista vertical
+            # Concatenate all indices into a vertical list
             todos_indices_vertical = []
             for indices in todos_indices_copy:
                 todos_indices_vertical.extend(indices['residuos_altos_mini'])
                 todos_indices_vertical.extend(indices['outliers_mini'])
                 todos_indices_vertical.extend(indices['residuos_altos_micro'])
                 todos_indices_vertical.extend(indices['outliers_micro'])
-        
-        
-        
+
             from collections import OrderedDict
         
-            # Converta todos_indices_vertical em um conjunto para remover duplicatas e, em seguida, converta de volta para uma lista mantendo a ordem original
-            todos_indices_vertical = list(OrderedDict.fromkeys(todos_indices_vertical))
+            # Convert all_indices_vertical to a set to remove duplicates, then back to a list maintaining original order
+            todos_indices_vertical = list(OrderedDict.fromkeys(todos_indices_vertical))        
         
-        
-                # Remover subplots não utilizados
+            # Remove unused subplots
             for i in range(num_arcos_validos, num_linhas*num_colunas):
                 fig.delaxes(axes.flatten()[i])
         
-        
-            # print(todos_indices_vertical)
-        
             all_index.extend(todos_indices_vertical)
         
-            # Remover espaços vazios da lista
+            # Remove empty entries from the list
             all_index = list(filter(None, all_index))
-        
-        
-        
-        
-        
-        
-        
-        # # Agora você pode acessar todos os índices em uma lista vertical
-        # print('Todos os índices em uma lista vertical:')
-        #
-        # for value in all_index:
-        #     print(value)
+
         print()
         print(satellite)
         
         df['outlier_flag'] = 'N'
         
-        # Substituir 'N' por 'Y' nos índices especificados
+        # Replace 'N' with 'Y' at the specified indices
         df.loc[all_index, 'outlier_flag'] = 'Y'
         
-        
-        
-        # for i, value in enumerate(df['outlier_flag']):
-        #     print(i,value)
-        
-        
-        
-        
-        # ----------------- [L1 - L5]
-        
+        # ----------------- [L1 - L5]        
         all_index15 = []
         
-        # Iterar sobre cada arco válido e plotar os dados
-        for i, (arc, ax) in enumerate(zip(arcos_validos, axes.flatten()), start=1):
-        
+        # Iterate over each valid arc and plot the data
+        for i, (arc, ax) in enumerate(zip(arcos_validos, axes.flatten()), start=1):        
             start = arc[0]
-            end = arc[-1]
-        
+            end = arc[-1]        
             arc_data = df.iloc[arc]
             time = df.index[arc]
         
             arc_values = MW_combination2[start:end+1]
-            # arc_values = IFL_combination[start:end+1]
             arc_timestamps = df['timestamp'][start:end+1]
             arc_values2 = arc_values
         
-            # Calcular o tempo decorrido em segundos desde o primeiro timestamp do arco
+            # Compute elapsed time in seconds from the first timestamp in the arc
             x = (arc_timestamps - arc_timestamps.iloc[0]).dt.total_seconds()
         
             y_rescaled = screening_settings.rescale_data(arc_values)
             delta_y = np.diff(y_rescaled, prepend=np.nan)
         
-            # Ajustar um polinômio apenas nos valores válidos (excluindo np.nan)
+            # Fit a polynomial only to valid values (excluding NaN)
             p = Polynomial.fit(x[1:], delta_y[1:], 3)
         
-            delta_y_fit = p(x)  # Valores ajustados pelo polinômio
-            # residuals = abs(delta_y - delta_y_fit)  # Calcular resíduos
-            residuals = delta_y - delta_y_fit  # Calcular resíduos
+            delta_y_fit = p(x)  # Fitted values
+            residuals = delta_y - delta_y_fit  # Compute residuals
         
-            mini_arcos = []  # Lista para armazenar os arcos de observação
+            mini_arcos = []  # List to store observation mini-arcs
             mini_arcos_mantidos = []
-            mini_arc_atual = []  # Lista temporária para armazenar o arco de observação atual
+            mini_arc_atual = []  # Temporary list for current mini-arc
             signo_anterior = None
         
-            # Iterar sobre todos os elementos de residuals
+            # Iterate through all residual values
             for idx, value in enumerate(residuals):
-                if signo_anterior is None:  # Se for o primeiro valor, inicializa o signo_anterior
+                if signo_anterior is None:  # First value, initialize previous_sign
                     signo_anterior = np.sign(value)
         
-                # Verifica se o sinal mudou
+                # Check if the sign changed
                 if np.sign(value) != signo_anterior:
-                    # Se o arco atual não estiver vazio, adiciona-o à lista de mini-arcos
                     if mini_arc_atual:
                         mini_arcos.append(mini_arc_atual)
-                    mini_arc_atual = []  # Inicia um novo mini-arco
-        
-                # Adiciona o índice ao mini-arco atual
+                    mini_arc_atual = []
                 mini_arc_atual.append(idx)
-        
-                # Atualiza o sinal anterior
                 signo_anterior = np.sign(value)
         
-            # Lista para armazenar os miniarcos que passam no critério positivo
+            # List to store mini-arcs that pass the minimum criteria
             mini_arcos_mantidos = []
-        
-            # Definindo uma flag para controlar a saída do loop
             should_break = False
         
             print()
@@ -886,35 +737,23 @@ def RNXScreening(destination_directory):
                 mini_start_index = mini_arc[0]
                 mini_end_index = mini_arc[-1]
                 num_observations = len(mini_arc)
-                status = "Mantido" if num_observations >= 4 else "Descartado"
-                print(f"Mini-arco {mini_i + 1}: Start = {mini_start_index}, End = {mini_end_index}, Obs. = {num_observations}, Status = {status}")
-        
-                # Verifica se o número de observações é menor que 4
+                status = "Kept" if num_observations >= 4 else "Discarded"
+                print(f"Mini-arc {mini_i + 1}: Start = {mini_start_index}, End = {mini_end_index}, Obs. = {num_observations}, Status = {status}")
+
                 if num_observations <= 4:
-                    # Atualiza a flag para indicar que devemos sair dos loops
                     should_break = True
                     continue
-                    # break  # Sai do loop interno
-        
-                # Se o miniarco tem pelo menos 4 observações, adiciona-o à lista de miniarcos mantidos
+
                 mini_arcos_mantidos.append(mini_arc)
-            # sys.exit()
-            # Se a flag indicar que devemos sair dos loops, saímos do loop externo também
+
             if should_break:
                 continue
-        #
-            # Imprimir os miniarcos mantidos
-            print("Miniarcos mantidos:")
+
+            print("Kept mini-arcs:")
             for i, mini_arc in enumerate(mini_arcos_mantidos):
-                print(f"Mini-arco {i + 1}: {mini_arc}")
+                print(f"Mini-arc {i + 1}: {mini_arc}")
         
-        
-            print('TESTE OK')
-        
-        
-        
-        
-            # Cálculo dos quartis e IQR para identificação de outliers
+            # Compute quartiles and IQR to identify outliers
             Q1 = np.nanpercentile(residuals, 15)
             Q3 = np.nanpercentile(residuals, 85)
             IQR = Q3 - Q1
@@ -925,67 +764,40 @@ def RNXScreening(destination_directory):
             high_residuals_mask = residuals > 1  # Máscara para resíduos altos
             other_residuals_mask = ~(outlier_mask | high_residuals_mask)  # Máscara para os demais resíduos
         
-            # Ajustar um polinômio de segundo grau
+            # Fit a 3rd-degree polynomial
             x_values = np.arange(len(arc_values))
             polynomial_fit = screening_settings.fit_polynomial(x_values, arc_values, 3)
         
-            # Plotar os dados do arco
+            # Plot arc data
             ax.scatter(arc_timestamps, arc_values, label='Dados', color='blue', s=15)
-        
-            # Plotar o ajuste polinomial
-            ax.plot(arc_timestamps, polynomial_fit, label='Ajuste', color='red')
-        
-        
-            # Definir o formato do eixo x como horas
-            ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
-        
-        
-            # Obtendo o número do arco válido correspondente
+            ax.plot(arc_timestamps, polynomial_fit, label='Ajuste', color='red')        
+
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))        
             num_arc_valido = arcos.index(arc) + 1
+
+            ax.set_title(f"Arc {num_arc_valido}")
         
-            # Adicionar o número do arco válido ao título
-            ax.set_title(f"Arco {num_arc_valido}")
-        
-            # Adicionar subplots menores dentro dos subplots principais
+            # Create inset subplots
             ax_fit = ax.inset_axes([0.6, 0.6, 0.35, 0.35])
             ax_residuals = ax.inset_axes([0.6, 0.15, 0.35, 0.35])
         
-            # # Cores para cada mini-arco
+            # Colors for each mini-arc
             cores = ['lightblue', 'yellow', 'lime', 'green', 'purple', 'navy', 'blue','lime', 'green', 'navy']
         
-        
-        
-            all_out = []  # Inicializar a lista 'all_out' antes do loop
+            all_out = []
             all__all = []
-            # Inicialize a lista para armazenar os índices de resíduos altos e outliers
             all_indices = []
-        
-            # Lista para armazenar todos os índices
             todos_indices = []
         
-        
-        
-        
-            for i, (mini_start, mini_end) in enumerate(mini_arcos_mantidos):
-        
-        
-        
-        
+            for i, (mini_start, mini_end) in enumerate(mini_arcos_mantidos):        
                 mini_residuals = residuals[mini_start:mini_end]
                 mini_time = time[mini_start:mini_end]
         
-                # print(len(mini_residuals))
-        
-        
-        
                 try:
-                    mini_fit = screening_settings.fit_polynomial(mini_time, mini_residuals, 3)
-        
+                    mini_fit = screening_settings.fit_polynomial(mini_time, mini_residuals, 3)        
                     new_mini_residuals = abs(mini_residuals-mini_fit)
         
-        
-        
-                    # Cálculo dos quartis e IQR para identificação de outliers
+                    # Quartile and IQR for outlier detection
                     mini_Q1 = np.nanpercentile(new_mini_residuals, 15)
                     mini_Q3 = np.nanpercentile(new_mini_residuals, 85)
                     mini_IQR = mini_Q3 - mini_Q1
@@ -998,95 +810,66 @@ def RNXScreening(destination_directory):
         
                     micro_residuals = abs(np.diff(new_mini_residuals, prepend=np.nan))
         
-                    # Calcule os quartis
+                    # Calculate Q1 and Q3
                     q1_micro = np.nanpercentile(micro_residuals, 15)
                     q3_micro = np.nanpercentile(micro_residuals, 85)
         
-                    # Calcule a amplitude interquartil
-                    iqr_micro = q3_micro - q1_micro
-        
+                    # Calculate IQR
+                    iqr_micro = q3_micro - q1_micro        
                     micro_threshold2 = 1.3
         
-                    # Defina os limites para identificar outliers
                     lower_bound_micro = q1_micro - micro_threshold2 * iqr_micro
                     upper_bound_micro = q3_micro + micro_threshold2 * iqr_micro
         
-                    # Encontre outliers
-                    outliers_micro = (micro_residuals < lower_bound_micro) | (micro_residuals > upper_bound_micro)
-        
-        
-                    micro_high_residuals_mask = micro_residuals > 0.00002  # Máscara para resíduos altos
-        
+                    # Find outliers
+                    outliers_micro = (micro_residuals < lower_bound_micro) | (micro_residuals > upper_bound_micro)        
+                    micro_high_residuals_mask = micro_residuals > 0.00002
         
                     ax_fit.scatter(mini_time, abs(micro_residuals), color=cores[i], s=2, label='Out.', marker='o')
                     ax_fit.scatter(mini_time[micro_high_residuals_mask], micro_residuals[micro_high_residuals_mask], color='red', s=2, label='Out.', marker='o')
                     ax_fit.scatter(mini_time[outliers_micro], abs(micro_residuals[outliers_micro]), color='red', s=2, label='Out.', marker='o')
         
-        
-        
-        
-                    # Convertendo os índices locais para índices globais - mini
+                    # Convert local to global indices – mini
                     global_high_residuals_indices = np.where(mini_high_residuals_mask)[0] + mini_start
                     global_outlier_indices = np.where(mini_outlier_mask)[0] + mini_start
         
-                    # Convertendo os índices locais para índices globais - micro
+                    # Convert local to global indices – micro
                     global_high_residuals_indices_micro = np.where(micro_high_residuals_mask)[0] + mini_start
                     global_outlier_indices_micro = np.where(outliers_micro)[0] + mini_start
-        
-        
-                    # ax_residuals.scatter(mini_time, new_mini_residuals, color=cores[i], s=1, label='Out.', marker='o')
+
                     ax_residuals.scatter(mini_time[mini_outlier_mask], new_mini_residuals[mini_outlier_mask], edgecolor='red', facecolor='none', s=2, label='Out.', marker='o')
                     ax_residuals.scatter(mini_time[outliers_micro], new_mini_residuals[outliers_micro], edgecolor='red', facecolor='none', s=2, label='Out.', marker='o')
                     ax_residuals.scatter(mini_time[micro_high_residuals_mask], new_mini_residuals[micro_high_residuals_mask], edgecolor='pink', facecolor='none', s=2, label='Out.', marker='o')
         
-                    print('OKOKOKO')
-        
-                    # Listas para armazenar os índices de resíduos altos e outliers
+                    # Lists to store indices of high residuals and outliers
                     indices_residuos_altos_mini = start + global_high_residuals_indices
                     indices_outliers_mini = start + global_outlier_indices
                     indices_residuos_altos_micro = start + global_high_residuals_indices_micro
                     indices_outliers_micro = start + global_outlier_indices_micro
-        
-        
-                    # Lista para armazenar os índices de resíduos altos e outliers
+
                     indices_residuos_altos_mini = start + global_high_residuals_indices
                     indices_outliers_mini = start + global_outlier_indices
                     indices_residuos_altos_micro = start + global_high_residuals_indices_micro
                     indices_outliers_micro = start + global_outlier_indices_micro
-        
-                    # Adiciona os índices à lista geral
+
                     todos_indices.append({
                         'residuos_altos_mini': indices_residuos_altos_mini,
                         'outliers_mini': indices_outliers_mini,
                         'residuos_altos_micro': indices_residuos_altos_micro,
                         'outliers_micro': indices_outliers_micro
-                    })
-        
-        
+                    })               
         
                 except:
-                    pass  # Ignorar e continuar o loop
-                    # print('ERRO')
+                    pass  # Ignore and continue
         
-        
-        
-        
-        
-            # Remover subplots não utilizados
+            # Remove unused subplots
             for i in range(num_arcos_validos, num_linhas*num_colunas):
                 fig.delaxes(axes.flatten()[i])
         
-        
-            # plt.show()
-        
-        
-        
-        
-        
-            # Criar uma cópia da lista todos_indices antes de estender todos_indices_vertical
+            # Create a copy of the todos_indices list before extending todos_indices_vertical
             todos_indices_copy = todos_indices.copy()
         
-            # # Agora você pode acessar todos os índices fora do loop
+            # Now you can access all indices outside the loop
             for indices in todos_indices_copy:
                 print(f"Índices para iteração {i}:")
                 print("Resíduos Altos para Mini-Arco:", indices['residuos_altos_mini'])
@@ -1095,9 +878,7 @@ def RNXScreening(destination_directory):
                 print("Outliers para Micro-Arco:", indices['outliers_micro'])
                 print()
         
-        
-        
-            # Concatena todos os índices em uma lista vertical
+            # Concatenate all indices into a vertical list
             todos_indices_vertical = []
             for indices in todos_indices_copy:
                 todos_indices_vertical.extend(indices['residuos_altos_mini'])
@@ -1105,86 +886,54 @@ def RNXScreening(destination_directory):
                 todos_indices_vertical.extend(indices['residuos_altos_micro'])
                 todos_indices_vertical.extend(indices['outliers_micro'])
         
-        
-        
             from collections import OrderedDict
         
-            # Converta todos_indices_vertical em um conjunto para remover duplicatas e, em seguida, converta de volta para uma lista mantendo a ordem original
+            # Convert todos_indices_vertical into a set to remove duplicates and then back to a list preserving original order
             todos_indices_vertical = list(OrderedDict.fromkeys(todos_indices_vertical))
         
-        
-                # Remover subplots não utilizados
+            # Remove unused subplots
             for i in range(num_arcos_validos, num_linhas*num_colunas):
                 fig.delaxes(axes.flatten()[i])
         
-        
-            # print(todos_indices_vertical)
-        
             all_index15.extend(todos_indices_vertical)
         
-            # Remover espaços vazios da lista
+            # Remove empty entries from the list
             all_index15 = list(filter(None, all_index15))
         
-        
         print()
-        print(satellite)
+        print(satellite)        
         
-        
-        # Substituir 'N' por 'Y' nos índices especificados
+        # Replace 'N' with 'Y' at the specified indices
         df.loc[all_index15, 'outlier_flag'] = 'Y'
-        
-        
-        
-        
-        
-        
-        
-        #
-        # Diretório de destino e diretório de saída desejado
-        #destination_directory = "/media/debian-giorgio/DATA/GNSS_DATA/RINEX/PROCESSED"
+
+        # Output directory and desired path
         output_directory = os.path.join(str(ano), str(doy), estacao.upper())
-        # #
-        # # # Caminho completo do diretório de saída dentro do diretório de destino
+
+        # Full output directory path within the destination directoryo
         full_path = os.path.join(destination_directory)
-        # #
-        # #
-        # # # Garantir que o diretório exista ou criar se não existir
+        
+        # Ensure the directory exists or create it if not
         os.makedirs(full_path, exist_ok=True)
-        # #
-        # #
-        # # # Definir o nome do arquivo
+        
+        # Define the file name
         file_name = f"{estacao}_{satellite}_{doy}_{ano}.RNX2"
-        # #
-        # # # Caminho completo do arquivo de saída
+      
+        # Full path of the output file
         output_file_path = os.path.join(full_path, file_name)
-        # #
-        # #
-        # # # Selecionar apenas as colunas desejadas
+        
+        # Select only the desired columns
         colunas_desejadas = ['date', 'time', 'mjd', 'pos_x', 'pos_y', 'pos_z', 'L1', 'L2', 'L5', 'P1', 'P2', 'P5', 'cs_flag', 'outlier_flag', 'satellite', 'sta', 'hght', 'El', 'Lon', 'Lat', 'obs_La', 'obs_Lb', 'obs_Lc', 'obs_Ca', 'obs_Cb', 'obs_Cc']
         
-        
-        
         df_selecionado = df[colunas_desejadas]
-        # #
-        # #
-        # Substituir NaN por -999999.999
+
+        # Replace NaN with -999999.999
         df_selecionado = df_selecionado.fillna(-999999.999)
         
-        # Salvar o DataFrame selecionado em um arquivo de texto separado por tabulação
+        # Save the selected DataFrame to a tab-delimited text file
         df_selecionado.to_csv(output_file_path, sep='\t', index=False, na_rep='-999999.999')
         
-        # # Ler o arquivo para verificar se está correto
-        # with open(output_file_path, 'r') as f:
-        #     print(f.read())
-        
-        
-        
-        # Ler o arquivo para verificar se está correto
+        # Read the file to verify it is correct
         with open(output_file_path, 'r') as f:
             file_content = f.read()
         
-        print(f"Dados exportados para {output_file_path}.")
-
-
-
-
+        print(f"Data exported to {output_file_path}.")
