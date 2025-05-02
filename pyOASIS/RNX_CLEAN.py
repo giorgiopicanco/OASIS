@@ -473,7 +473,7 @@ def RNXclean(station_name,day_of_year,year,output_folder,input_folder,orbit_fold
                 start_index = arc[0]
                 end_index = arc[-1]
                 num_observations = len(arc)
-                status = "Maintained" if num_observations >= 15 else "Discarded"
+                status = "Kept" if num_observations >= 15 else "Discarded"
     
                 print(f"Arc {i + 1}: Start index = {start_index}, End index = {end_index}, "
                     f"Number of observations = {num_observations}, Status = {status}")
@@ -509,7 +509,7 @@ def RNXclean(station_name,day_of_year,year,output_folder,input_folder,orbit_fold
                 start_index = arc[0]
                 end_index = arc[-1]
                 num_observations = len(arc)
-                status = "Maintained" if num_observations >= 15 else "Discarded"
+                status = "Kept" if num_observations >= 15 else "Discarded"
                 print(f"Arc {i + 1}: Start index = {start_index}, End index = {end_index}, "
                     f"Number of observations = {num_observations}, Status = {status}")
     
