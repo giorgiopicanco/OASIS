@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import sys
 import re
 from datetime import datetime
@@ -6,12 +5,7 @@ import pandas as pd
 import os
 
 def SP3intp(year,doy,input_folder,output_folder):
-    # Arguments from the management program
-    # year = sys.argv[1]
-    # doy = sys.argv[2]
-    # input_folder = sys.argv[3]
-    # output_folder = sys.argv[4]
-    
+
     # Regular expressions for data analysis
     pattern_datetime = r"\*\s+(\d{4})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2}\.\d{8})"
     pattern_data = r"([A-Z]{2}\d{2})\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)"

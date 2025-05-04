@@ -2,7 +2,6 @@ from pyproj import Transformer, CRS
 import numpy as np
 
 def convert_coords(obs_x, obs_y, obs_z, to_radians = True):
-
     """
     Converts cartesian to geodesic coordinates.
     Just now, just for the receiver positions.

@@ -11,7 +11,6 @@ QZSS = 'J'
 BDS = 'C'
 SBAS = 'S'
 IRNSS = 'I'
-
 NNSS = 'T'
 MIX = 'M'
 

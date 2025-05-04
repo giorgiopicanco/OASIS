@@ -177,6 +177,7 @@ def SIDXcalc(station,doy,year,input_folder,destination_directory):
     sat_classes = ['G', 'R']
     
     for sat in sat_classes:
+        label_plotted = False
         satx=sat
         # Filtering the satellites
         if satx:
@@ -504,10 +505,16 @@ def SIDXcalc(station,doy,year,input_folder,destination_directory):
         concatenated_df = concatenated_df.sort_values(by='MJD')
     
         # Plotting SIDX for the current satellite with a color from the palette
-        color = palette(idx / len(satellites_to_plot))
+        #color = palette(idx / len(satellites_to_plot))
         # Plotting the smoothed line connecting the segments
         # plt.plot(concatenated_df['MJD'], concatenated_df['SIDX'], color='red', drawstyle='default')
     
+        # Defina as cores fixas para GPS e GLONASS
+        color_map = {'G': 'blue', 'R': 'red'}
+
+
+
+
         # Define the data
         x = df_mean['MJD'].values
         y = df_mean['SIDX'].values
@@ -522,7 +529,14 @@ def SIDXcalc(station,doy,year,input_folder,destination_directory):
         y_gap = np.insert(y, np.where(mask)[0] + 1, np.nan)
     
         # Plot the points and the lines connected only where there is continuous data
-        plt.plot(x_gap, y_gap * 10, color='red', label='SIDX', linewidth=2)  # line connecting the points
+        #plt.plot(x_gap, y_gap * 10, color=color[i], label='SIDX', linewidth=2)  # line connecting the points
+
+        label_str = f"SIDX {'GPS' if satx == 'G' else 'GLONASS'}" if not label_plotted else None
+        plt.plot(x_gap, y_gap * 10, color=color_map[satx], linewidth=2, label=label_str)
+        label_plotted = True
+
+
+
         # plt.scatter(x, y, color='red', label='Data Points', marker='s',s=20, zorder=3)  # Scatter points
     
         # Assuming 'mjd' is a list of MJD values in string format
@@ -540,6 +554,20 @@ def SIDXcalc(station,doy,year,input_folder,destination_directory):
         # Configure the plot
         plt.gca().xaxis.set_major_formatter(hours_fmt)
         plt.gca().xaxis.set_major_locator(hour_locator)
+
+        # from matplotlib.dates import date2num
+        #
+        # # Define o intervalo de tempo desejado
+        # start_time = datetime(year=int(year), month=1, day=1) + timedelta(days=int(doy) - 1, hours=9)
+        # end_time = datetime(year=int(year), month=1, day=1) + timedelta(days=int(doy) - 1, hours=14)
+        #
+        # # Converte as datas para o formato numérico usado no eixo x (MJD)
+        # mjd_start = (start_time - datetime(1858, 11, 17)).total_seconds() / 86400.0
+        # mjd_end = (end_time - datetime(1858, 11, 17)).total_seconds() / 86400.0
+        #
+        # # Aplica o limite no eixo X
+        # plt.xlim(mjd_start, mjd_end)
+
     
         # Increase the size of the x-axis labels
         plt.xticks(fontsize=14)
@@ -559,6 +587,9 @@ def SIDXcalc(station,doy,year,input_folder,destination_directory):
         #plt.ylim(-10,20)
         plt.grid(True)
         plt.tight_layout()
+
+        plt.legend(fontsize=14)
+
     
         file_name_png = f"{station}_{doy}_{year}_SIDX.png"
         output_file_path_png = os.path.join(full_path, file_name_png)

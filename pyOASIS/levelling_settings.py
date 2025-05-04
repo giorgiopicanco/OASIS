@@ -8,68 +8,55 @@ from astropy.time import Time
 from scipy.constants import speed_of_light
 from pyOASIS import gnss_freqs
 
-# Definição de funções
+# Function definitions
 def geometry_free_combination_L(lambda1, lambda2, L1, L2):
     """
-    Calcula a combinação livre de geometria para a fase.
+    Computes the geometry-free combination for carrier phase measurements.
 
-    Parâmetros:
-    - lambda1, lambda2: Comprimentos de onda para as duas frequências.
-    - L1, L2: Observações de fase para as duas frequências.
+    Parameters:
+    - lambda1, lambda2: Wavelengths for the two frequencies.
+    - L1, L2: Phase observations for the two frequencies.
 
-    Retorna:
-    - L_GF: Resultado da combinação livre de geometria para a fase.
+    Returns:
+    - L_GF: Result of the geometry-free combination for carrier phase.
     """
     L_GF = (lambda1*L1)-(lambda2*L2)
     # L_GF = L1 - L2
     return L_GF
 
-
-
-# Definição de funções
 def geometry_free_combination_C(P1, P2):
     """
-    Calcula a combinação livre de geometria para o código.
+    Computes the geometry-free combination for pseudorange code measurements.
 
-    Parâmetros:
-    - P1, P2: Observações de código para as duas frequências.
+    Parameters:
+    - P1, P2: Code observations for the two frequencies.
 
-    Retorna:
-    - P_GF: Resultado da combinação livre de geometria para o código.
+    Returns:
+    - P_GF: Result of the geometry-free combination for code.
     """
     P_GF = P2-P1
     return P_GF
 
-    # gf = gf / 10**7
-    # Convertendo NaN para "NaN"
-    # gf2[np.isnan(gf2)] = "NaN"
-    # return gf2
-
-
-# Função para ajustar um polinômio de baixo grau aos dados
+# Function to fit a low-degree polynomial to data
 def fit_polynomial(x, y, degree):
     coeffs = np.polyfit(x, y, degree)
     return np.polyval(coeffs, x)
 
-
-
 def detect_outliers(arc_data, polynomial_fits, arc_idx, threshold_factor):
     outliers = []
     for i, (arc_values, fit) in enumerate(zip(arc_data, polynomial_fits), start=1):
-        # Calcular os resíduos
-
+        # Compute the residuals
         residuals = np.abs(arc_values - fit)
-        # Calcular a média dos resíduos
+        # Compute the median of residuals
         mean_residuals = np.median(residuals)
-        # print(mean_residuals)
-        # Definir o limiar para detecção de outliers
+        # Define the threshold for outlier detection
         threshold = threshold_factor * mean_residuals
-        # Marcar os valores que são outliers
+        # Identify the values that are outliers
         outlier_indices = np.where(np.abs(residuals) > threshold)[0]
-        # Recuperar os limites do arco atual
+        # Retrieve the current arc limits
         arc_start, arc_end = arc_idx[i - 1][0], arc_idx[i - 1][-1] + 1
-        # Transformar os índices dos outliers no arco nos índices dos outliers nos dados originais
+        # Transform arc-local outlier indices into global indices
         real_outlier_indices = outlier_indices + arc_start
-        # Adicionar os outliers à lista
+        # Add outliers to the list
         outliers.extend([(i, arc_values[idx], idx, real_idx) for idx, real_idx in zip(outlier_indices, real_outlier_indices)])
     return outliers
