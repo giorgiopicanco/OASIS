@@ -91,6 +91,16 @@ python3 main.py
 
 ---
 
+## Geometry-Free Leveling Example
+
+<p align="center">
+  <img src="img/levelling_example.png" alt="Levelled GF Example" width="700"/>
+</p>
+
+*Example of arc-wise geometry-free leveling for GNSS signals (L1-L2 and L1-L5 for GPS, L1-L2 and L2-L3 for GLONASS) at station BOAV, year 2023, day 049.*
+
+---
+
 ## Cite This Work
 
 If you use this software in your research, please cite:
