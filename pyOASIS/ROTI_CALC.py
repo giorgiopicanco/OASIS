@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import os
 import matplotlib.pyplot as plt
 import numpy as np
@@ -10,25 +8,15 @@ from datetime import datetime, timedelta
 import matplotlib.dates as mdates
 from pyOASIS import gnss_freqs
 
-# # Definindo fonte Palatino Linotype em tudo
-# plt.rcParams['font.family'] = 'Palatino'
+def ROTIcalc(estacao,doy,ano,diretorio_principal,destination_directory, show_plot=True):
 
+    # === Configuration Parameters ===
 
-def ROTIcalc(estacao,doy,ano,diretorio_principal,destination_directory):
-
-    # Arguments from the management program
-    # estacao = sys.argv[1]
-    # doy = sys.argv[2]
-    # ano = sys.argv[3]
-    # diretorio_principal = sys.argv[4]
-    # destination_directory = sys.argv[5]
-    
-    # Variables and Parameters
     h1 = 0
-    n_horas = 24  # horas
-    int1 = 320  # minutos
+    n_horas = 24  # Number of hours to process
+    int1 = 320  # Number of minutes (used elsewhere at this moment)
     
-    # Accessing the frequencies of the GPS system
+    # Access GNSS frequencies (GPS system)
     gps_freqs = gnss_freqs.FREQUENCY[gnss_freqs.GPS]
     f1 = gps_freqs[1]
     f2 = gps_freqs[2]
@@ -37,113 +25,65 @@ def ROTIcalc(estacao,doy,ano,diretorio_principal,destination_directory):
     akl = 40.3 * 10 ** 16 * ((1 / f2 ** 2) - (1 / f1 ** 2))
     akl15 = 40.3 * 10 ** 16 * ((1 / f5 ** 2) - (1 / f1 ** 2))
     
-    # Adjustable window to calculate averages, deviations, etc., in seconds...
-    # Defines the sampling frequency of the calculated index...
-    # Here it is defined as 2.5 minutes (following Giorgio's method)...
-    WINDOW = 60.0 * 2.5
-    
-    # estándar de unidad de tiempo para que el ROTI quede en TECU/min
-    TROTI = 60.0
-    
-    # faltante de datos por pasadas sucesivas o por cortes prolongados debido a obstrucciones, etc...
-    GAP = 1.5 * WINDOW
-    
-    # altura de la capa
-    H = 350000  # m
-    
-    # tolerancia para la detección de outliers...
-    SIGMA = 5
-    
-    # grado de los polinomios
-    DE = 3
-    
-    # separación entre arcos (i.e., pasadas)
-    GAP2 = 3600  # s
-    
-    # anglo de elevacion (cutoff):
-    elev_angle=30
-    
-    
-    # Construindo o caminho completo para a pasta CHPI
+    # ROTI calculation parameters
+    WINDOW = 60.0 * 2.5     # Time window in seconds (2.5 min) for ROTI computation
+    TROTI = 60.0            # ROTI time normalization factor (TECU/min)
+    GAP = 1.5 * WINDOW      # Maximum time gap allowed between observations within a window
+    H = 450000              # Ionospheric shell height [m]
+    SIGMA = 5               # Outlier detection threshold (in standard deviations)
+    DE = 3                  # Degree of polynomial fit used for smoothing
+    GAP2 = 3600             # Time threshold to define independent arcs (seconds)
+    elev_angle = 30         # Minimum elevation angle (degrees) for valid data
+
+    # === Directory and file handling ===
+
+    # Construct the full path to the station directory
     caminho_ = os.path.join(diretorio_principal, estacao)
-    print(caminho_)
-    # Verificando se o diretório CHPI existe
+
+    # Check if the directory exists
     if os.path.exists(caminho_):
-        # Listando o conteúdo da pasta CHPI
+        # Listando o conteúdo da pasta
         conteudo_ = os.listdir(caminho_)
-        print("Arquivos .txt na pasta:")
-    
-        # Definindo a variável arquivos de acordo com o conteúdo_chpi
+        print("Files found in directory:")
+
+        # Filter only .RNX3 files that match the station prefix
         arquivos = [arquivo for arquivo in conteudo_ if arquivo.startswith(estacao) and arquivo.endswith(".RNX3")]
-        print(arquivos)
     
-    
-    
-        # Ordenando os arquivos pelo número do satélite
+        # Sort files by satellite PRN (from filename)
         arquivos_ordenados = sorted(arquivos, key=lambda x: int(x.split("_")[1][1:]))
     
-        # Imprimindo os arquivos encontrados
+        # Print sorted file names
         for arquivo in arquivos_ordenados:
-            print("Conteúdo do arquivo", arquivo)
-    
+            print("File found:", arquivo)
     
         print()
-        # Contando o número de arquivos
         numero_de_arquivos = len(arquivos_ordenados)
-        print("Número de arquivos RINEX_SCREENED no diretório:", numero_de_arquivos)
-    
+        print("Number of screened RINEX files (.RNX3) in the directory:", numero_de_arquivos)
     else:
-        print("O diretório especificado não existe.")
-    
-    
+        print("Specified directory does not exist.")
     print()
     
-    # Inicializando listas para armazenar os valores de cada variável de todos os arquivos
-    # timestamp = []
-    # mjd = []
-    # position = []
-    # LGF = []
-    # satellites = []
-    # sta = []
-    # obs_La = []
-    # obs_Lb = []
-    # obs_Ca = []
-    # obs_Cb = []
-    
-    
-    date = []
-    time2 = []
-    mjd = []
-    pos_x = []
-    pos_y = []
-    pos_z = []
-    LGF_combination = []
-    LGF_combination15 = []
-    satellites = []
-    sta = []
-    hght = []
-    el = []
-    lonn = []
-    latt = []
-    obs_La = []
-    obs_Lb = []
-    obs_Lc = []
-    obs_Ca = []
-    obs_Cb = []
-    obs_Cc = []
+    # === Data structure initialization ===
+
+    # Lists to store parsed data from RINEX files
+
+    date, time2, mjd = [], [], []
+    pos_x, pos_y, pos_z = [], [], []
+    LGF_combination, LGF_combination15 = [], []
+    satellites, sta, hght, el = [], [], [], []
+    lonn, latt = [], []
+    obs_La, obs_Lb, obs_Lc = [], [], []
+    obs_Ca, obs_Cb, obs_Cc = [], [], []
+
+    # === Read and parse RINEX data files ===
     
     for arquivo in arquivos_ordenados:
         caminho_arquivo = os.path.join(caminho_, arquivo)
-    
         with open(caminho_arquivo, 'r') as f:
-            # Lendo o cabeçalho do arquivo
             header = f.readline().strip().split('\t')
-    
-            # Lendo cada linha de dados do arquivo
             for linha in f:
-                # Dividindo a linha em colunas
-                colunas = linha.strip().split('\t')  # Supondo que as colunas estejam separadas por tabulação (\t)
-                # Associando cada coluna com o cabeçalho correspondente
+                colunas = linha.strip().split('\t')
+                # Append each column value to the corresponding list
                 registro = {
                     'date': colunas[0],
                     'time2': colunas[1],
@@ -167,8 +107,6 @@ def ROTIcalc(estacao,doy,ano,diretorio_principal,destination_directory):
                     'obs_Cc': colunas[19]
                 }
     
-                # Adicionando os valores de cada variável às respectivas listas
-                # timestamp.append(registro['timestamp'])
                 date.append(registro['date'])
                 time2.append(registro['time2'])
                 mjd.append(registro['mjd'])
@@ -190,40 +128,29 @@ def ROTIcalc(estacao,doy,ano,diretorio_principal,destination_directory):
                 obs_Cb.append(registro['obs_Cb'])
                 obs_Cc.append(registro['obs_Cc'])
     
-    # Criar uma única figura
-    plt.figure(figsize=(12, 6))
+    # === ROTI Computation Loop ===
     
-    
-    # Definindo a paleta de cores
+    sat_classes = ['G','R'] # Currently supported: GPS (G) and GLONASS (R)
     palette = plt.get_cmap('tab10')
-    
-    #sat = 'R'
-    sat_classes = ['G','R']
+    plt.figure(figsize=(12, 6)) # Prepare one figure for all satellites
     
     for sat in sat_classes:
         satx=sat
-        # Filtrando os satélites
+        # Filter satellite PRNs by class
         if satx:
             satellites_to_plot = [sv for sv in np.unique(satellites) if sv.startswith(sat)]
         else:
             satellites_to_plot = np.unique(satellites)
     
-        print(satellites_to_plot)
-    
-    
-        # Criar uma única figura
-        # plt.figure(figsize=(12, 6))
-    
-        # Inicializando uma lista para armazenar os valores de ROTI de todos os satélites
-        # Lista para armazenar os dicionários de dados de cada satélite
+        # Initialize list to collect data
         dados_satelites = []
     
         for sat1 in satellites_to_plot:
-            print(sat1)
+            print()
+            print(f"Processing {sat1} satellite...")
             indices = np.where(np.array(satellites) == sat1)[0]
-            # print(f"Índices para o satélite {satellite}")#  : {indices}")
     
-            # Inicializando listas filtradas para cada satélite
+            # Initializing filtered lists for each satellite
             date_filtered = []
             time2_filtered = []
             mjd_filtered = []
@@ -289,28 +216,23 @@ def ROTIcalc(estacao,doy,ano,diretorio_principal,destination_directory):
                 'obs_Cb': obs_Cb_filtered,
                 'obs_Cc': obs_Cc_filtered
             }
-    
-    
+
             df = pd.DataFrame(data)
     
-    
-    
-            # Convertendo as colunas 'date' e 'time' para o tipo datetime e depois concatenando
+            # Creating a timestamp column by combining 'date' and 'time' columns
             df['timestamp'] = df['date'] + ' ' + df['time']
     
-            # Convertendo a coluna 'timestamp' para o tipo datetime, se ainda não estiver
+            # Converting the 'timestamp' column to datetime format, if not already
             df['timestamp'] = pd.to_datetime(df['timestamp'])
     
-            # Convertendo as colunas relevantes para float
+            # Converting relevant columns to float type
             columns_to_convert = ['LGF', 'LGF15', 'mjd','lonn','latt','hh','elev']
             df[columns_to_convert] = df[columns_to_convert].astype(float)
     
+            # Replacing missing data values with NaN
             df.replace(-999999.999, np.nan, inplace=True)
-    
-    
-            # L1-L2
-    
-    
+
+            # --------- L1-L2 (GNSS frequency combination for ROTI computation)
     
             t = df['mjd']
             stec = df['LGF'] / akl
@@ -320,15 +242,13 @@ def ROTIcalc(estacao,doy,ano,diretorio_principal,destination_directory):
             elev = df['elev']
             hh = df['hh']
     
-    
-    
-            # diferencia entre épocas consecutivas...
+            # Difference between consecutive epochs (converted from days to seconds)
             d = 86400.0*np.diff(t)
     
-            # crear máscara porque en la frontera de los 15 minutos aparecen épocas repetidas...
+            # Mask repeated epochs at the edges of 15-minute intervals
             d = ma.masked_values(d,0.0)
     
-            # buscar y corregir "saltos" de IFBs residuales (entre ajustes)...
+            # Search and correct residual IFB jumps at masked epochs (from leveling steps)
             i = np.where(np.append(d.mask, False) == True)[0]
             for j in range(i.size):
                 dIFB = stec[i[j] + 1] - stec[i[j]]
@@ -337,184 +257,146 @@ def ROTIcalc(estacao,doy,ano,diretorio_principal,destination_directory):
                 dIFB15 = stec15[i[j] + 1] - stec15[i[j]]
                 stec15[i[j] + 1:] = stec15[i[j] + 1:] - dIFB15
     
-            # no se requiere aquí...
-            #RATE = np.round(np.min(x[~ x.mask]))
-    
-            # si al menos un dato debió ser enmascarado (i.e., al menos una época repetida)...
+            # If at least one value was masked (i.e., repeated epoch exists)
             if (d.mask.any()):
                 lat = lat[np.append(~ d.mask, True)]
                 lon = lon[np.append(~ d.mask, True)]
                 hh = hh[np.append(~ d.mask, True)]
-                # az = az[np.append(~ d.mask, True)]
                 t = t[np.append(~ d.mask, True)]
                 stec = stec[np.append(~ d.mask, True)]
                 stec15 = stec15[np.append(~ d.mask, True)]
                 elev = elev[np.append(~ d.mask, True)]
     
-    
-            # primer observación...
+            # First observation time
             t0 = t[0]
     
-            # índice de datos en cada ventana...
+            # Index of data within each ROTI window
             i = np.floor(np.round(86400*(t - t0))/WINDOW)
     
-            # ventanas con datos...
+            # Unique window indices with valid data
             j = np.unique(i)
     
-    
-            # acumuladores...
+            # Accumulators for ROTI calculation
             alon = []
             alat = []
             at = []
             ahh = []
-            # aaz = []
             ROTI = []
             ROTI15 = []
             elev1 = []
     
-    
-    
-    
-            # acá calculo el ROTI (a modo de ejemplo, aunque debería ser con STEC y no con stec)...
+            # Compute ROTI for each valid window
             for k in range(j.size):
                 l = ma.masked_values(i,j[k])
     
-                # solo si hay al menos de 2 observaciones en esta ventana...
+                # Proceed only if there are at least two valid observations in the window
                 if lon[l.mask].size > 1:
                     alon.append(np.mean(lon[l.mask]))
                     alat.append(np.mean(lat[l.mask]))
                     ahh.append(np.mean(hh[l.mask]))
-                    # aaz.append(np.mean(az[l.mask]))
                     at.append(np.mean(t[l.mask]))
                     elev1.append(np.mean(elev[l.mask]))
     
                     ROT = np.divide(np.diff(stec[l.mask]),86400.0*np.diff(t[l.mask])/TROTI)
-    
                     ROT15 = np.divide(np.diff(stec15[l.mask]),86400.0*np.diff(t[l.mask])/TROTI)
     
-                    # el np.abs() "captura" error de redondeo cuando el ROTI es muy muy muy muy pequeño, casi cero (i.e., 1e-19)...
+                    # np.abs() ensures stability when ROTI is very small (e.g., ~1e-19)
                     ROTI.append(np.sqrt(np.abs(np.mean(ROT*ROT) - np.mean(ROT)**2)))
-    
                     ROTI15.append(np.sqrt(np.abs(np.mean(ROT15*ROT15) - np.mean(ROT15)**2)))
     
-    
-    
-            ## matrices..
+            # Convert accumulators to numpy arrays
             alon = np.array(alon)
             alat = np.array(alat)
             ahh = np.array(ahh)
-            # aaz = np.array(aaz)
             at = np.array(at)
             ROTI = np.array(ROTI)
             ROTI15 = np.array(ROTI15)
             elev = np.array(elev1)
     
-    
-            # diferencia entre épocas consecutivas...
+            # Identify time gaps to define independent arcs
             d = 86400.0*np.diff(at)
-    
-            # máscara para buscar arcos independientes...
             d = ma.masked_greater_equal(d,GAP2)
     
-            # donde ocurren los gaps de tiempo?
+            # Indices where time gaps occur
             i = np.where(np.append(d.mask, False) == True)[0]
     
-            # donde empiezan los arcos?
+            # Start and end indices for each arc
             i1 = np.append(0,np.where(np.append(d.mask, False) == True)[0])
-            # donde terminan los arcos?
             i2 = np.append(np.where(np.append(d.mask, False) == True)[0] - 1,alon.size)
     
-            # matrices para los polinomios ajustados y los límites superior e inferior...
+            # Arrays for polynomial fits and bounds
             y = np.empty((ROTI.size,))
             yup = np.empty((ROTI.size,))
             ydown = np.empty((ROTI.size,))
-    
             y15 = np.empty((ROTI15.size,))
             yup15 = np.empty((ROTI15.size,))
             ydown15 = np.empty((ROTI15.size,))
     
-            #filtrado por "spikes" debido a los diferentes "intervalos" nivelados con ambigüedad constante, cuyos límites no son aun expuestos por AGEO...
+            # Filter out spikes from constant ambiguity intervals (e.g., multi-arc leveling)
             for j in range(i1.size):
-                # época media
+                # Mean time of current arc
                 tm = np.mean(at[i1[j]:i2[j]])
     
                 if (at[i1[j]:i2[j]][-1] - at[i1[j]:i2[j]][0]) != 0.0:
-                    # variable independiente normalizada
+                    # Normalized time for polynomial fitting
                     x = (at[i1[j]:i2[j]] - tm)/(at[i1[j]:i2[j]][-1] - at[i1[j]:i2[j]][0])
     
-                    # ajuste del polinomio
+                    # Fit polynomials for ROTI and ROTI15
                     c = np.polyfit(x,ROTI[i1[j]:i2[j]],DE)
-    
                     c15 = np.polyfit(x,ROTI15[i1[j]:i2[j]],DE)
     
-                    # evaluación del polinomio
+                    # Evaluate fitted polynomials
                     y[i1[j]:i2[j]] = np.polyval(c,x)
-    
                     y15[i1[j]:i2[j]] = np.polyval(c15,x)
     
-                    # rms de los residuos
+                    # Compute residual standard deviations
                     rms = np.std(ROTI[i1[j]:i2[j]] - y[i1[j]:i2[j]])
-    
                     rms15 = np.std(ROTI15[i1[j]:i2[j]] - y15[i1[j]:i2[j]])
                 else:
                     y[i1[j]:i2[j]] = ROTI[i1[j]:i2[j]]
                     rms = 0.0
-    
                     y15[i1[j]:i2[j]] = ROTI15[i1[j]:i2[j]]
                     rms15 = 0.0
     
-                # límites superior e inferior
+                # Compute upper and lower bounds for outlier rejection
                 yup[i1[j]:i2[j]] = y[i1[j]:i2[j]] + SIGMA*rms
                 ydown[i1[j]:i2[j]] = y[i1[j]:i2[j]] - SIGMA*rms
-    
                 yup15[i1[j]:i2[j]] = y15[i1[j]:i2[j]] + SIGMA*rms15
                 ydown15[i1[j]:i2[j]] = y15[i1[j]:i2[j]] - SIGMA*rms15
     
-    
-            # hacer máscara
+            # Mask outliers based on threshold bounds
             mask = np.abs(ROTI - y) > (yup - ydown)/2.0
     
-            # descartar los valores enmascarados (los outliers)...
+            # Discard masked (outlier) values
             alatm = alat[~ mask]
             alonm = alon[~ mask]
             ahhm = ahh[~ mask]
-            # aazm = aaz[~ mask]
             atm = at[~ mask]
             ROTIm = ROTI[~ mask]
             ROTIm15 = ROTI15[~ mask]
             elevm = elev[~ mask]
-    
-    
+
+            # Apply elevation mask
             cutoff = np.where(elevm>=elev_angle)
-    
-    
-    
             alat = alatm[cutoff]
             alon = alonm[cutoff]
             ahh = ahhm[cutoff]
-            # aaz = aazm[cutoff]
             at = atm[cutoff]
             ROTI = ROTIm[cutoff]
             ROTI15 = ROTIm15[cutoff]
             elev = elevm[cutoff]
     
-    
+            # Discard extreme ROTI values (optional upper limit)
             cut_out = np.where(ROTI<=10)
-    
             alat = alat[cut_out]
             alon = alon[cut_out]
             ahh = ahh[cut_out]
-            # aaz = aaz[cut_out]
             at = at[cut_out]
             ROTI = ROTI[cut_out]
             ROTI15 = ROTI15[cut_out]
             elev = elev[cut_out]
-            #
-            # # Resultados por saída padrão...
-            # for i in range(ROTI.size):
-            #     print("%13.8f %13.8f %13.8f %13.8f %16.10f %6.3f %s %s" % (alon[i], alat[i], ahh[i], at[i], elev[i], ROTI[i], estacao, sat1))  # ,OBS))
     
-            # Inicialize um dicionário para armazenar os dados deste satélite
+            # Initialize dictionary to store results for this satellite
             dados_satelite = {
                 'MJD': at,
                 'Longitude': alon,
@@ -527,88 +409,69 @@ def ROTIcalc(estacao,doy,ano,diretorio_principal,destination_directory):
                 'SAT': sat1
             }
     
-            # Adicione o dicionário de dados do satélite à lista
+            # Append this satellite's data to the list
             dados_satelites.append(dados_satelite)
     
-        # Concatene todos os dicionários de dados em um DataFrame
+        # Concatenate all satellite data dictionaries into a single DataFrame
         df_concatenado = pd.concat([pd.DataFrame(dados) for dados in dados_satelites], ignore_index=True)
     
-        # Exiba o DataFrame concatenado
-        #print(df_concatenado)    
-    
+        # Define the output directory and file path
         output_directory = os.path.join(destination_directory, estacao.upper())
         full_path = output_directory
         file_name = f"{estacao}_{doy}_{ano}_{satx}_ROTI.txt"
         output_file_path = os.path.join(full_path, file_name)
     
-        # Garantir que o diretório exista
+        # Ensure that the output directory exists
         os.makedirs(full_path, exist_ok=True)
     
-        # Salvar o DataFrame selecionado em um arquivo de texto separado por tabulação
+        # Save the DataFrame to a tab-delimited text file
         df_concatenado.to_csv(output_file_path, sep='\t', index=False, na_rep='-999999.999')
-    
-    
-        # Plotando o ROTI para o satélite atual com uma cor da paleta
-        color = palette(idx / len(satellites_to_plot))
-        plt.scatter(df_concatenado['MJD'], df_concatenado['ROTI'], marker='o', color='red')
-        plt.scatter(df_concatenado['MJD'], df_concatenado['ROTI15'], marker='o', color='red',)
-    
-        # # Convertendo a lista de ROTI concatenado para um array numpy
-        # ROTI_concatenado = np.array(ROTI_concatenado)
-    
-        # Supondo que 'mjd' seja uma lista de valores MJD em formato de string
-        # Converta os valores MJD para objetos de data e hora
+
+        # Choose color and label depending on satellite system
+        if satx == 'G':
+            color = 'blue'
+            label = 'ROTI - GPS'
+        elif satx == 'R':
+            color = 'red'
+            label = 'ROTI - GLONASS'
+        else:
+            color = 'gray'
+            label = f'ROTI - {satx}'
+
+        # Only plot one label per GNSS class to avoid duplicate legend entries
+        plt.scatter(df_concatenado['MJD'], df_concatenado['ROTI'], marker='o', color=color, label=label)
+
+
+        # Convert MJD values (as strings) to datetime objects
         start_time_mjd = min(map(float, mjd))
         start_time_datetime = datetime(1858, 11, 17) + timedelta(days=start_time_mjd)
         datetimes = [start_time_datetime + timedelta(days=float(at_val)) for at_val in mjd]
-    
-        # Configure o formato do eixo x para exibir apenas a hora e o minuto
+
+        # Configure the x-axis to show time in hours
         hours_fmt = mdates.DateFormatter('%H')
-    
-        # Configure o localizador de hora para o intervalo de 1 hora
         hour_locator = mdates.HourLocator(interval=2)
-    
-        # Configure o gráfico
+
+        # Apply formatting and tick size adjustments
         plt.gca().xaxis.set_major_formatter(hours_fmt)
         plt.gca().xaxis.set_major_locator(hour_locator)
-    
-        # Aumentando o tamanho dos rótulos do eixo x
         plt.xticks(fontsize=14)
-    
-    
-        # Definindo título e rótulo do eixo y
-        plt.ylabel('ROTI (TECU/min)', fontsize=16)
-    
-        # Definindo título e rótulo do eixo x
-        plt.xlabel('Hora (UT)', fontsize=16)
-    
-        # Aumentando o tamanho dos rótulos do eixo x
-        plt.xticks(fontsize=14)
-    
-        # Aumentando o tamanho dos rótulos do eixo x
         plt.yticks(fontsize=14)
-    
-        # Definindo título do gráfico
-        plt.title(estacao, fontsize=18)
-    
-        plt.ylim(0,5)
-        plt.grid(True)
+
+        # Set axis labels and plot title
+        plt.title(f"Station: {estacao.upper()}  |  Year: {ano}  |  DOY: {doy}", fontsize=16)
+        plt.ylabel('ROTI (TECU/min)', fontsize=16)
+        plt.xlabel('Time (UT)', fontsize=16)
+        plt.tick_params(axis='both', which='major', labelsize=14)
+        plt.ylim(0, 5)
+        plt.grid(True, linestyle='--', linewidth=1, color='gray')
+        plt.legend(fontsize=14)
         plt.tight_layout()
-    
-    
+
+        # Define the PNG file name and path
         file_name_png = f"{estacao}_{doy}_{ano}_ROTI.png"
         output_file_path_png = os.path.join(full_path, file_name_png)
-    
-        # Salvando a figura com 300 DPI
+
+        # Save the plot as a high-resolution PNG image
         plt.savefig(output_file_path_png, dpi=300)
-    
-    
-    
-        # Exiba o gráfico
-        #plt.show()
-    
-        plt.gca().xaxis.set_major_formatter(hours_fmt)
-
-
-
-
+    if show_plot:
+        plt.show()

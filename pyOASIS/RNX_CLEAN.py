@@ -721,7 +721,3 @@ def RNXclean(station_name,day_of_year,year,output_folder,input_folder,orbit_fold
             os.makedirs(full_path, exist_ok=True)
             output_file_path = os.path.join(full_path, file_name)
             export_df.to_csv(output_file_path, sep='\t', index=False, na_rep='-999999.999')
-
-
-
-

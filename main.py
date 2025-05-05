@@ -1,5 +1,3 @@
-
-#!/usr/bin/env python3
 import os
 import subprocess
 from pathlib import Path
@@ -23,16 +21,14 @@ Path(output_dir).mkdir(parents=True, exist_ok=True)
 
 #pyOASIS.RNXclean(sta,doy,year,output_dir,input_dir,output_dir)
 
-#sys.exit()
 #pyOASIS.RNXScreening(sta_dir)
 
-pyOASIS.RNXlevelling(sta,sta_dir,show_plot=True)
-sys.exit()
-pyOASIS.ROTIcalc(sta, doy, year, output_dir, output_dir)
+#pyOASIS.RNXlevelling(sta,sta_dir,show_plot=True)
 
+pyOASIS.ROTIcalc(sta, doy, year, output_dir, output_dir,show_plot=True)
+sys.exit()
 pyOASIS.DTECcalc(sta, doy, year, output_dir, output_dir)
 
 pyOASIS.SIDXcalc(sta, doy, year, output_dir, output_dir)
-
 
 #%%
