@@ -76,8 +76,9 @@ python3 main.py
 - `RNX_CLEAN.py` – Prepares and organizes RINEX data.
 - `RNX_SCREENING.py` – Detects outliers and cycle slips using MW combinations.
 - `RNX_LEVELLING.py` – Performs arc-wise geometry-free leveling.
+- `ROTI_CALC.py` – Calculates ROTI.
 - `DTEC_CALC.py` – Calculates ΔTEC index.
-- `SIDX_CALC.py` – Calculates the Sudden Ionospheric Disturbance Index.
+- `SIDX_CALC.py` – Calculates the Sudden Ionospheric Disturbance Index (SIDX).
 - `SP3_INTERPOLATE.py` – Extracts and organizes SP3 orbit data.
 - `linear_combinations.py`, `gnss_freqs.py`, `settings.py`, `glonass_channels.dat`, etc. – Support modules for GNSS frequency handling and coordinate transformation.
 
