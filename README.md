@@ -41,6 +41,46 @@ pip install -r requirements.txt
 
 ---
 
+## Example Input Data
+
+This repository includes example input files under the `INPUT/` directory:
+
+- `boav0491.23o` – RINEX observation file for station BOAV, day 049 of 2023.
+- `GFZ0MGXRAP_20230490000_01D_05M_ORB.SP3` – MGEX SP3 precise orbit file for the same day, provided by GFZ.
+
+These files allow you to run a full test of the OASIS pipeline without additional downloads.
+
+> To use your own data, simply replace the files in the `INPUT/` folder and update the parameters in `main.py` accordingly.
+
+---
+
+### Downloading MGEX Orbit Files (.SP3)
+
+MGEX SP3 orbit files can be downloaded from the [CDDIS archive](https://cddis.nasa.gov/archive/gnss/products/) by accessing the folder corresponding to the desired GPS week.
+> A very easy registration is required to access the CDDIS archive. You can register [here](https://urs.earthdata.nasa.gov/users/new).
+
+To convert a calendar date (dd/mm/yyyy) to GPS week and day-of-year (DOY), use [gnsscalendar.com](https://www.gnsscalendar.com/).
+
+Each orbit file follows the naming pattern:
+
+<provider prefix><YYYY><DOY>0000_01D_05M_ORB.SP3.gz
+
+Where:
+- `YYYY` is the year,
+- `DOY` is the day of year (001–365/366),
+- The **provider prefix** depends on the year:
+  - For data **before 2018**, use: `JAX0MGXFIN_`
+  - For data **from 2018 onward**, use: `GFZ0MGXRAP_`
+
+**Example:**
+The orbit file for day 049 of 2023 is:
+
+GFZ0MGXRAP_20230490000_01D_05M_ORB.SP3
+
+After downloading, decompress the `.gz` file and place the resulting `.SP3` inside your `INPUT/` directory.
+
+---
+
 ## Workflow Summary
 
 1. **Input**: RINEX observation files (e.g., `boav0491.23o`) and MGEX SP3 precise orbit files (e.g., `GFZ0MGXRAP_20230490000_01D_05M_ORB.SP3`).
@@ -68,7 +108,7 @@ pip install -r requirements.txt
 python main.py
 ```
 
-3. Results are saved in structured output folders, organized by station and satellite.
+4. Results are saved in structured output folders, organized by station and satellite.
 
 ---
 
