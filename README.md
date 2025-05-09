@@ -63,12 +63,12 @@ To convert a calendar date (dd/mm/yyyy) to GPS week and day-of-year (DOY), use [
 
 Each orbit file follows the naming pattern:
 
-`<provider prefix><YYYY><DOY>0000_01D_05M_ORB.SP3.gz`
+`<prefix>_<YYYY><DOY>0000_01D_05M_ORB.SP3.gz`
 
 Where:
 - `YYYY` is the year,
 - `DOY` is the day of year (001–365/366),
-- The **provider prefix** depends on the year:
+- The **prefix** depends on the year:
   - For data **before 2018**, use: `JAX0MGXFIN_`
   - For data **from 2018 onward**, use: `GFZ0MGXRAP_`
 
