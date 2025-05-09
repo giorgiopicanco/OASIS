@@ -60,7 +60,7 @@ pip install -r requirements.txt
 
 ## How to Run
 
-1. Place the required RINEX observation files (`.23o`, `.23n`) and MGEX SP3 orbit files (`.SP3`) inside the `INPUT/` directory.
+1. Place the required RINEX observation files (`.yyo`) and MGEX SP3 orbit files (`.SP3`) inside the `INPUT/` directory.
 2. In `main.py`, define the station code, year, day of year (DOY), and paths to the input and output directories.
 3. Run the pipeline:
 
