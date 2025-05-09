@@ -50,14 +50,14 @@ This repository includes example input files under the `INPUT/` directory:
 
 These files allow you to run a full test of the OASIS pipeline without additional downloads.
 
-> To use your own data, simply replace the files in the `INPUT/` folder and update the parameters in `main.py` accordingly.
+To use your own data, simply replace the files in the `INPUT/` folder and update the parameters in `main.py` accordingly.
 
 ---
 
 ### Downloading MGEX Orbit Files (.SP3)
 
 MGEX SP3 orbit files can be downloaded from the [CDDIS archive](https://cddis.nasa.gov/archive/gnss/products/) by accessing the folder corresponding to the desired GPS week.
-> A very easy registration is required to access the CDDIS archive. You can register [here](https://urs.earthdata.nasa.gov/users/new).
+A very easy registration is required to access the CDDIS archive. You can register [here](https://urs.earthdata.nasa.gov/users/new).
 
 To convert a calendar date (dd/mm/yyyy) to GPS week and day-of-year (DOY), use [gnsscalendar.com](https://www.gnsscalendar.com/).
 
