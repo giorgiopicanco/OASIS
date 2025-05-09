@@ -108,7 +108,7 @@ python3 main.py
   <img src="img/roti_example.png" alt="ROTI Example" width="700"/>
 </p>
 
-*Example of Rate of TEC Index (ROTI) for GPS and GLONASS signals at station BOAV, year 2023, day 049. This plot reflects ionospheric irregularities typically associated with nighttime plasma bubble activity.*
+*Example of Rate of TEC Index (ROTI) for GPS (L1–L2, L1–L5) and GLONASS (L1–L2, L2–L3) signals at station BOAV (year 2023, day 049). This plot highlights ionospheric irregularities typically associated with nighttime equatorial plasma bubbles. Elevated ROTI values are observed between 00:00 and 07:00 UT, and again after 23:00 UT, consistent with post-sunset and pre-dawn plasma bubble activity.*
 
 ---
 
