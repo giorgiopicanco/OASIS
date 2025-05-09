@@ -25,9 +25,9 @@ Path(output_dir).mkdir(parents=True, exist_ok=True)
 
 #pyOASIS.RNXlevelling(sta,sta_dir,show_plot=True)
 
-pyOASIS.ROTIcalc(sta, doy, year, output_dir, output_dir,show_plot=True)
-sys.exit()
-pyOASIS.DTECcalc(sta, doy, year, output_dir, output_dir)
+#pyOASIS.ROTIcalc(sta, doy, year, output_dir, output_dir,show_plot=True)
+
+pyOASIS.DTECcalc(sta, doy, year, output_dir, output_dir, show_plot=True)
 
 pyOASIS.SIDXcalc(sta, doy, year, output_dir, output_dir)
 

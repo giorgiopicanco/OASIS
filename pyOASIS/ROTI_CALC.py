@@ -58,7 +58,7 @@ def ROTIcalc(estacao,doy,ano,diretorio_principal,destination_directory, show_plo
     
         print()
         numero_de_arquivos = len(arquivos_ordenados)
-        print("Number of screened RINEX files (.RNX3) in the directory:", numero_de_arquivos)
+        print("Number of leveled RINEX files (.RNX3) in the directory:", numero_de_arquivos)
     else:
         print("Specified directory does not exist.")
     print()
@@ -429,18 +429,34 @@ def ROTIcalc(estacao,doy,ano,diretorio_principal,destination_directory, show_plo
 
         # Choose color and label depending on satellite system
         if satx == 'G':
-            color = 'blue'
-            label = 'ROTI - GPS'
+            color = 'navy'
+            label = 'ROTI: L1-L2 (GPS)'
         elif satx == 'R':
             color = 'red'
-            label = 'ROTI - GLONASS'
+            label = 'ROTI: L1-L2 (GLONASS)'
         else:
-            color = 'gray'
+            color = 'magenta'
             label = f'ROTI - {satx}'
 
-        # Only plot one label per GNSS class to avoid duplicate legend entries
-        plt.scatter(df_concatenado['MJD'], df_concatenado['ROTI'], marker='o', color=color, label=label)
+        # Convert MJD to datetime for plotting
+        base_date = datetime(1858, 11, 17)
+        df_concatenado['datetime'] = df_concatenado['MJD'].astype(float).apply(lambda x: base_date + timedelta(days=x))
 
+        # Plot ROTI (G: L1-L2 & R: L1-L2)
+        plt.scatter(df_concatenado['datetime'], df_concatenado['ROTI'], marker='o', color=color, label=label)
+
+        # Plot ROTI15 (G: L1-L2 & R: L2-L3)
+        if satx == 'G':
+            color15 = 'blue'
+            label15 = 'ROTI: L1-L5 (GPS)'
+        elif satx == 'R':
+            color15 = 'orange'
+            label15 = 'ROTI: L2-L3 (GLONASS)'
+        else:
+            color15 = 'darkgray'
+            label15 = f'ROTI15 - {satx}'
+
+        plt.scatter(df_concatenado['datetime'], df_concatenado['ROTI15'], marker='o', color=color15, label=label15)
 
         # Convert MJD values (as strings) to datetime objects
         start_time_mjd = min(map(float, mjd))
@@ -464,7 +480,7 @@ def ROTIcalc(estacao,doy,ano,diretorio_principal,destination_directory, show_plo
         plt.tick_params(axis='both', which='major', labelsize=14)
         plt.ylim(0, 5)
         plt.grid(True, linestyle='--', linewidth=1, color='gray')
-        plt.legend(fontsize=14)
+        plt.legend(bbox_to_anchor=(1.0, 1), loc='upper left')
         plt.tight_layout()
 
         # Define the PNG file name and path

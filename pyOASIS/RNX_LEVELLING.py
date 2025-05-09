@@ -970,17 +970,14 @@ def RNXlevelling(estacao, diretorio_principal, show_plot=True):
             # Replace outliers with NaN
             L_GF_adjusted15 = [x if lower_bound <= x <= upper_bound else np.nan for x in L_GF_adjusted15]
 
-            #plt.scatter(df['timestamp'], L_GF_adjusted15, marker='o', s=20, color='red', label='GF: L1-L5', zorder=1)
-
-            # Escolhe cor e legenda com base na classe do satélite
+            # Choose color and label based on satellite class
             cor = 'blue' if sat_class == 'G' else 'orange'
             label = 'GF: L1-L5 (GPS)' if sat_class == 'G' else 'GF: L2-L3 (GLONASS)'
 
             if satellite == satellites_to_plot[0]:
-                plt.scatter(df['timestamp'], L_GF_adjusted15, marker='s', s=5, color=cor, label=label, zorder=2)
+                plt.scatter(df['timestamp'], L_GF_adjusted15, marker='o', s=20, color=cor, label=label, zorder=2)
             else:
-                plt.scatter(df['timestamp'], L_GF_adjusted15, marker='s', s=5, color=cor, zorder=2)
-
+                plt.scatter(df['timestamp'], L_GF_adjusted15, marker='o', s=20, color=cor, zorder=2)
 
             # Ensure L_GF_adjusted has the same length as df
             if len(L_GF_adjusted15) == len(df):
@@ -1001,7 +998,6 @@ def RNXlevelling(estacao, diretorio_principal, show_plot=True):
             df_selecionado = df[colunas_desejadas]
 
             # Path and file name
-            destination_directory = "/media/debian-giorgio/DATA/GNSS_DATA/RINEX/PROCESSED"
             output_directory = os.path.join(str(ano), str(doy), estacao.upper())
             full_path = os.path.join(diretorio_principal)
             file_name = f"{estacao}_{satellite}_{doy}_{ano}.RNX3"
