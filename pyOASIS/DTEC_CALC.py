@@ -8,7 +8,6 @@ import matplotlib.dates as mdates
 from datetime import datetime, timedelta
 from pyOASIS import gnss_freqs
 
-
 def DTECcalc(station, doy, year, input_folder, destination_directory, show_plot=True):
     """
     Compute DTEC index from GNSS data for a given station and day-of-year.
@@ -512,8 +511,14 @@ def DTECcalc(station, doy, year, input_folder, destination_directory, show_plot=
             # Store in the list of all satellites processed
             satellites_data.append(satellite_data)
 
+        # Skip system if no data found
+        if not satellites_data:
+            print(f"No data found for {satx} system. Skipping...")
+            continue
+
         # Concatenate all satellite data dictionaries into a single DataFrame
         concatenated_df = pd.concat([pd.DataFrame(data) for data in satellites_data], ignore_index=True)
+
 
         # Compute the mean values of each parameter grouped by MJD (i.e., per epoch)
         df_mean = concatenated_df.groupby('MJD').agg({
@@ -625,7 +630,3 @@ def DTECcalc(station, doy, year, input_folder, destination_directory, show_plot=
         plt.savefig(output_file_path_png, dpi=300)
     if show_plot:
         plt.show()
-
-
-
-

@@ -1,125 +1,108 @@
-#!/usr/bin/env python3
-
 import os
-import matplotlib.pyplot as plt
-import numpy as np
 import sys
+import numpy as np
 import pandas as pd
 import numpy.ma as ma
-from datetime import datetime, timedelta
+import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+from datetime import datetime, timedelta
 from pyOASIS import gnss_freqs
 
-def SIDXcalc(station,doy,year,input_folder,destination_directory):
-    
-    # Arguments from the management program
-    # station = sys.argv[1]
-    # doy = sys.argv[2]
-    # year = sys.argv[3]
-    # input_folder = sys.argv[4]
-    # destination_directory = sys.argv[5]
-    
-    # Variables and Parameters
-    h1 = 0
-    n_horas = 24  # horas
-    int1 = 320  # minutos
-    
-    # Accessing the frequencies of the GPS system
+def SIDXcalc(station, doy, year, input_folder, destination_directory, show_plot=True):
+    """
+    Compute SIDX (Slant Ionospheric Index) for a given GNSS station and day-of-year.
+
+    Parameters:
+        station (str): GNSS station code (e.g., BOAV)
+        doy (int or str): Day of year
+        year (int): Observation year
+        input_folder (str): Directory containing input files
+        destination_directory (str): Output directory for results
+    """
+
+    # Basic parameters
+    h1 = 0                      # Starting hour
+    n_hours = 24                # Number of hours to process
+    int1 = 320                  # Internal processing interval in minutes
+
+    # Access GPS frequencies from the pyOASIS configuration
     gps_freqs = gnss_freqs.FREQUENCY[gnss_freqs.GPS]
-    f1 = gps_freqs[1]
-    f2 = gps_freqs[2]
-    f5 = gps_freqs[5]
-    
-    akl = 40.3 * 10 ** 16 * ((1 / f2 ** 2) - (1 / f1 ** 2))
-    akl15 = 40.3 * 10 ** 16 * ((1 / f5 ** 2) - (1 / f1 ** 2))
-    
-    # Adjustable window to calculate averages, deviations, etc., in seconds...
-    # Defines the sampling frequency of the calculated index...
-    # Here it is defined as 2.5 minutes (following Giorgio's method)...
-    WINDOW = 60 * 1
-    
-    # Standard unit of time so that DTEC remains in mTECU/sec
-    TSIDX = 60.0
-    
-    # Missing data due to successive passes or prolonged outages caused by obstructions, etc...
-    GAP = 1.5 * WINDOW
-    
-    # Layer height
-    H = 450000  # m
-    
-    # Tolerance for outlier detection...
-    SIGMA = 5
-    
-    # Degree of polynomials
-    DE = 3
-    
-    # Separation between arcs (i.e., passes)
-    GAP2 = 3600  # s
-    
-    # Elevation angle (cutoff):
-    elev_angle=20
-    
-    
-    # Building the full path to the folder
+    f1 = gps_freqs[1]           # L1 frequency
+    f2 = gps_freqs[2]           # L2 frequency
+    f5 = gps_freqs[5]           # L5 frequency
+
+    # Geometry-Free scaling factors (in mTECU)
+    akl = 40.3e16 * ((1 / f2**2) - (1 / f1**2))      # For G:L1-L2 or R:L1-L2
+    akl15 = 40.3e16 * ((1 / f5**2) - (1 / f1**2))    # For G:L1-L5 or R:L2-L3
+
+    WINDOW = 60.0   # Processing window in seconds (1-min for SIDX)
+    TSIDX = 60.0 # Normalization time unit to keep SIDX in mTECU/sec
+    GAP = 1.5 * WINDOW  # Maximum gap duration (s) allowed between valid observations
+    H = 450000 # Ionospheric shell height for IPP (meters)
+    SIGMA = 5 # Sigma threshold for outlier removal (in units of standard deviation)
+    DE = 3 # Polynomial degree used for smoothing and fitting
+    GAP2 = 3600 # Minimum time separation between arcs (in seconds)
+    elev_angle = 20 # Elevation angle cutoff (in degrees) to filter low-angle observations
+
+    # Build the full path to the station directory
     path_ = os.path.join(input_folder, station)
     print(path_)
-    # Checking if the directory exists
+
+    # Check if the station directory exists
     if os.path.exists(path_):
-        # Listing the content of the folder
+        # List all files in the directory
         content_ = os.listdir(path_)
-        # print("Text files in the folder:")
-    
-        # Defining the files variable according to the content of the folder
+
+        # Filter files: keep only those that start with the station name and end with ".RNX3"
         files = [file for file in content_ if file.startswith(station) and file.endswith(".RNX3")]
-        #print(files)
-    
-        # Sorting the files by satellite number
+
+        # Sort files by satellite number (e.g., G01, G02, R01...)
         ord_files = sorted(files, key=lambda x: int(x.split("_")[1][1:]))
-    
+
+        # Print the number of valid RINEX3 files found
         print()
-        # Counting the number of files
         number_of_files = len(ord_files)
         print("Number of RINEX_SCREENED files in the directory:", number_of_files)
-    
     else:
         print("The specified directory does not exist.")
-    
-    
     print()
-    
-    date = []
-    time2 = []
-    mjd = []
-    pos_x = []
-    pos_y = []
-    pos_z = []
-    LGF_combination = []
-    LGF_combination15 = []
-    satellites = []
-    sta = []
-    hght = []
-    el = []
-    lonn = []
-    latt = []
-    obs_La = []
-    obs_Lb = []
-    obs_Lc = []
-    obs_Ca = []
-    obs_Cb = []
-    obs_Cc = []
-    
+
+    # Initialize empty lists to store the extracted GNSS data
+    date = []                # Date (YYYY-MM-DD)
+    time2 = []               # Time (HH:MM:SS)
+    mjd = []                 # Modified Julian Date
+    pos_x = []               # Receiver X position (meters)
+    pos_y = []               # Receiver Y position (meters)
+    pos_z = []               # Receiver Z position (meters)
+    LGF_combination = []     # Geometry-Free combination G:L1-L2 (or R:L1-L2 ...)
+    LGF_combination15 = []   # Geometry-Free combination G:L1-L5 (or R:L2-L3 ...)
+    satellites = []          # Satellite ID (e.g., G01, R08)
+    sta = []                 # Station code
+    hght = []                # IPP height
+    el = []                  # Elevation angle (degrees)
+    lonn = []                # IPP longitude
+    latt = []                # IPP latitude
+    obs_La = []              # GL1/RL1 carrier phase
+    obs_Lb = []              # GL2/RL2 carrier phase
+    obs_Lc = []              # GL5/RL3 carrier phase
+    obs_Ca = []              # GC1/RC1 pseudorange
+    obs_Cb = []              # GC2/RC2 pseudorange
+    obs_Cc = []              # GC5/RC3 pseudorange
+
+    # Loop through each .RNX3 file
     for file in ord_files:
         path_file = os.path.join(path_, file)
-    
+
         with open(path_file, 'r') as f:
-            # Reading the file header
+            # Read the header line to get column names
             header = f.readline().strip().split('\t')
-    
-            # Reading each data line from the file
+
+            # Read each subsequent data line
             for line in f:
-                # Splitting the line into columns
-                columns = line.strip().split('\t')  # Assuming the columns are separated by tabs (\t)
-                # Associating each column with the corresponding header
+                # Split line by tab separator
+                columns = line.strip().split('\t')
+
+                # Map each column to its corresponding variable
                 record = {
                     'date': columns[0],
                     'time2': columns[1],
@@ -142,9 +125,8 @@ def SIDXcalc(station,doy,year,input_folder,destination_directory):
                     'obs_Cb': columns[18],
                     'obs_Cc': columns[19]
                 }
-    
-                # Adding the values of each variable to the respective lists
-                # timestamp.append(record['timestamp'])
+
+                # Append each field to its corresponding list
                 date.append(record['date'])
                 time2.append(record['time2'])
                 mjd.append(record['mjd'])
@@ -165,36 +147,36 @@ def SIDXcalc(station,doy,year,input_folder,destination_directory):
                 obs_Ca.append(record['obs_Ca'])
                 obs_Cb.append(record['obs_Cb'])
                 obs_Cc.append(record['obs_Cc'])
-    
-    
-    # Create a single figure
+
+    # Create a figure for plotting the results
     plt.figure(figsize=(12, 6))
-    
-    # Defining the color palette
+
+    # Define the color palette for plotting
     palette = plt.get_cmap('tab10')
-    
-    #G: GPS, R: GLONASS
+
+    # GNSS constellations to process: G = GPS, R = GLONASS
     sat_classes = ['G', 'R']
-    
+
+    # Loop through each GNSS constellation class
     for sat in sat_classes:
-        label_plotted = False
-        satx=sat
-        # Filtering the satellites
+        label_plotted = False  # Used to avoid repeating legend entries
+        satx = sat
+
+        # Filter satellites belonging to the current class (e.g., all GPS satellites)
         if satx:
             satellites_to_plot = [sv for sv in np.unique(satellites) if sv.startswith(sat)]
         else:
             satellites_to_plot = np.unique(satellites)
-    
-    
-        # Initializing a list to store the DTEC values of all satellites
-        # List to store the data dictionaries of each satellite
+
+        # Initialize a list to store data for all satellites in this class
         satellites_data = []
-    
+
+        # Loop through each individual satellite (e.g., G01, G02, R01...)
         for sat1 in satellites_to_plot:
-            # print(sat1)
+            # Get the indices in the full list where this satellite appears
             indices = np.where(np.array(satellites) == sat1)[0]
-    
-            # Initializing filtered lists for each satellite
+
+            # Initialize filtered lists for this satellite
             date_filtered = []
             time2_filtered = []
             mjd_filtered = []
@@ -215,7 +197,8 @@ def SIDXcalc(station,doy,year,input_folder,destination_directory):
             obs_Ca_filtered = []
             obs_Cb_filtered = []
             obs_Cc_filtered = []
-    
+
+            # Append the data for the current satellite
             for idx in indices:
                 date_filtered.append(date[idx])
                 time2_filtered.append(time2[idx])
@@ -237,7 +220,8 @@ def SIDXcalc(station,doy,year,input_folder,destination_directory):
                 obs_Ca_filtered.append(obs_Ca[idx])
                 obs_Cb_filtered.append(obs_Cb[idx])
                 obs_Cc_filtered.append(obs_Cc[idx])
-    
+
+            # Organize the filtered data into a dictionary for DataFrame construction
             data = {
                 'date': date_filtered,
                 'time': time2_filtered,
@@ -260,206 +244,194 @@ def SIDXcalc(station,doy,year,input_folder,destination_directory):
                 'obs_Cb': obs_Cb_filtered,
                 'obs_Cc': obs_Cc_filtered
             }
-    
-    
+
+            # Convert the dictionary to a pandas DataFrame for analysis
             df = pd.DataFrame(data)
     
-    
-            # Converting the 'date' and 'time' columns to datetime type and then concatenating
+            # Combine 'date' and 'time' columns to form full timestamps
             df['timestamp'] = df['date'] + ' ' + df['time']
-    
-            # Converting the 'timestamp' column to datetime type, if not already
+
+            # Convert the 'timestamp' column to datetime objects
             df['timestamp'] = pd.to_datetime(df['timestamp'])
-    
-            # Converting relevant columns to float
-            columns_to_convert = ['LGF', 'LGF15', 'mjd','lonn','latt','hh','elev']
+
+            # Convert selected columns to float type for numerical processing
+            columns_to_convert = ['LGF', 'LGF15', 'mjd', 'lonn', 'latt', 'hh', 'elev']
             df[columns_to_convert] = df[columns_to_convert].astype(float)
-    
+
+            # Replace invalid values with NaN
             df.replace(-999999.999, np.nan, inplace=True)
-    
-    
-            # L1-L2
-            t = df['mjd']
-            stec = df['LGF'] / akl
-            stec15 = df['LGF15'] / akl15
-            lat = df['latt']
-            lon = df['lonn']
-            elev = df['elev']
-            hh = df['hh']
-    
-    
-            # difference between consecutive epochs...
-            d = 86400.0*np.diff(t)
-    
-            # create mask because at the 15-minute boundary repeated epochs appear...
-            d = ma.masked_values(d,0.0)
-    
-            # search for and correct residual IFB "jumps" (between adjustments)...
-            i = np.where(np.append(d.mask, False) == True)[0]
+
+            # Assign relevant columns for further processing
+            t = df['mjd']                           # Time in Modified Julian Date
+            stec = df['LGF'] / akl                  # Convert LGF to Slant TEC (L1-L2)
+            stec15 = df['LGF15'] / akl15            # Convert LGF15 to Slant TEC (L1-L5)
+            lat = df['latt']                        # Latitude of IPP
+            lon = df['lonn']                        # Longitude of IPP
+            elev = df['elev']                       # Elevation angle
+            hh = df['hh']                           # IPP height
+
+            # Compute time differences between epochs (in seconds)
+            d = 86400.0 * np.diff(t)
+
+            # Mask repeated epochs (common at interval boundaries like 15 min)
+            d = ma.masked_values(d, 0.0)
+
+            # Detect and correct small STEC discontinuities (IFB "jumps")
+            i = np.where(np.append(d.mask, False))[0]
             for j in range(i.size):
                 dIFB = stec[i[j] + 1] - stec[i[j]]
-                stec[i[j] + 1:] = stec[i[j] + 1:] - dIFB
-    
+                stec[i[j] + 1:] -= dIFB
+
                 dIFB15 = stec15[i[j] + 1] - stec15[i[j]]
-                stec15[i[j] + 1:] = stec15[i[j] + 1:] - dIFB15
-    
-    
-            # If at least one data point had to be masked (i.e., at least one repeated epoch)...
-            if (d.mask.any()):
-                lat = lat[np.append(~ d.mask, True)]
-                lon = lon[np.append(~ d.mask, True)]
-                hh = hh[np.append(~ d.mask, True)]
-                # az = az[np.append(~ d.mask, True)]
-                t = t[np.append(~ d.mask, True)]
-                stec = stec[np.append(~ d.mask, True)]
-                stec15 = stec15[np.append(~ d.mask, True)]
-                elev = elev[np.append(~ d.mask, True)]
-    
-    
-            # First obvervation...
+                stec15[i[j] + 1:] -= dIFB15
+
+            # If any masked values (repeated epochs) exist, remove them
+            if d.mask.any():
+                mask = np.append(~d.mask, True)  # Restore full length
+                lat = lat[mask]
+                lon = lon[mask]
+                hh = hh[mask]
+                t = t[mask]
+                stec = stec[mask]
+                stec15 = stec15[mask]
+                elev = elev[mask]
+
+            # Reference time (first valid epoch)
             t0 = t[0]
-    
-            # index of data in each window...
-            i = np.floor(np.round(86400*(t - t0))/WINDOW)
-    
-            # windows with data...
+
+            # Assign each epoch to a processing window (based on WINDOW size)
+            i = np.floor(np.round(86400 * (t - t0)) / WINDOW)
+
+            # Unique windows that contain data
             j = np.unique(i)
-    
-    
-            # accumulators..
-            alon = []
-            alat = []
-            at = []
-            ahh = []
-            # aaz = []
-            SIDXf = []
-            SIDX15f = []
-            elev1 = []
-    
-    
-            # Here we calculate ROT and SIDX...
+
+            # Accumulators for results across time windows
+            alon = []       # Mean longitude per window
+            alat = []       # Mean latitude per window
+            at = []         # Central time (MJD) per window
+            ahh = []        # Mean IPP height
+            SIDXf = []      # SIDX (L1-L2) result per window
+            SIDX15f = []    # SIDX (L1-L5) result per window
+            elev1 = []      # Mean elevation angle per window
+
+            # Compute ROT and SIDX within each window
             for k in range(j.size):
                 l = ma.masked_values(i, j[k])
-    
-                # Only calculate if there are at least two observations in the window
+
+                # Proceed only if there are at least two observations in the window
                 if lon[l.mask].size > 1:
+                    # Store average geolocation and elevation per window
                     alon.append(np.mean(lon[l.mask]))
                     alat.append(np.mean(lat[l.mask]))
                     ahh.append(np.mean(hh[l.mask]))
                     at.append(np.mean(t[l.mask]))
                     elev1.append(np.mean(elev[l.mask]))
-    
-                    # Calculation of ROT using the difference of STEC
+
+                    # Compute Rate of TEC (ROT) in TECU/sec
                     ROT = np.divide(np.diff(stec[l.mask]), 86400.0 * np.diff(t[l.mask]) / TSIDX)
-    
-                    # Calculation of SIDX: Mean of the magnitude of ROT in a time window
+
+                    # Compute SIDX: mean absolute ROT in the window
                     SIDX = np.mean(np.abs(ROT))
-    
-                    # Adding the values to the array
+
+                    # Store SIDX for this window
                     SIDXf.append(SIDX)
-    
-            # SIDX now contains the SIDX values
-    
-    
-            ## Matrices..
+
+            # Convert accumulators to NumPy arrays
             alon = np.array(alon)
             alat = np.array(alat)
             ahh = np.array(ahh)
-            # aaz = np.array(aaz)
-            at = np.array(at)
-            SIDX = np.array(SIDXf)
-            SIDX15 = np.array(SIDXf)
+            at = np.array(at)              # Mean MJD per window
+            SIDX = np.array(SIDXf)         # L1-L2 SIDX
+            SIDX15 = np.array(SIDXf)       # L1-L5 SIDX
             elev = np.array(elev1)
-    
-    
-            # Difference between consecutive epochs...
-            d = 86400.0*np.diff(at)
-    
-            # Mask to find independent arcs...
-            d = ma.masked_greater_equal(d,GAP2)
-    
-            # Where do the time gaps occur?
-            i = np.where(np.append(d.mask, False) == True)[0]
-    
-            # Where do the arcs start?
-            i1 = np.append(0,np.where(np.append(d.mask, False) == True)[0])
-            # Where do the arcs end?
-            i2 = np.append(np.where(np.append(d.mask, False) == True)[0] - 1,alon.size)
-    
-            # Matrices for the fitted polynomials and the upper and lower limits...
-            y = np.empty((SIDX.size,))
-            yup = np.empty((SIDX.size,))
-            ydown = np.empty((SIDX.size,))
-    
-            y15 = np.empty((SIDX15.size,))
-            yup15 = np.empty((SIDX15.size,))
-            ydown15 = np.empty((SIDX15.size,))
-    
-            # Filtering for "spikes" due to different "intervals" leveled with constant ambiguity, whose limits are not yet exposed by OASIS...
+
+            # Compute time differences between windows (seconds)
+            d = 86400.0 * np.diff(at)
+
+            # Identify independent arcs separated by gaps larger than GAP2
+            d = ma.masked_greater_equal(d, GAP2)
+
+            # Indices where time gaps occur
+            i = np.where(np.append(d.mask, False))[0]
+
+            # Start and end indices of each arc
+            i1 = np.append(0, i)
+            i2 = np.append(i - 1, alon.size - 1)
+
+            # Prepare matrices for polynomial fits and outlier thresholds
+            y = np.empty(SIDX.size)
+            yup = np.empty(SIDX.size)
+            ydown = np.empty(SIDX.size)
+
+            y15 = np.empty(SIDX15.size)
+            yup15 = np.empty(SIDX15.size)
+            ydown15 = np.empty(SIDX15.size)
+
+            # Loop over each arc to fit a polynomial and compute residuals
             for j in range(i1.size):
-                # Mean epoch
-                tm = np.mean(at[i1[j]:i2[j]])
-    
-                if (at[i1[j]:i2[j]][-1] - at[i1[j]:i2[j]][0]) != 0.0:
-                    # Normalized independent variable
-                    x = (at[i1[j]:i2[j]] - tm)/(at[i1[j]:i2[j]][-1] - at[i1[j]:i2[j]][0])
-    
-                    # Polynomial fitting
-                    c = np.polyfit(x,SIDX[i1[j]:i2[j]],DE)
-                    c15 = np.polyfit(x,SIDX15[i1[j]:i2[j]],DE)
-    
-                    # Polynomial evaluation
-                    y[i1[j]:i2[j]] = np.polyval(c,x)
-                    y15[i1[j]:i2[j]] = np.polyval(c15,x)
-    
-                    # RMS of the residuals
-                    rms = np.std(SIDX[i1[j]:i2[j]] - y[i1[j]:i2[j]])
-                    rms15 = np.std(SIDX15[i1[j]:i2[j]] - y15[i1[j]:i2[j]])
+                # Center time of current arc
+                tm = np.mean(at[i1[j]:i2[j]+1])
+
+                # Check if arc contains more than one time step
+                if (at[i2[j]] - at[i1[j]]) != 0.0:
+                    # Normalize time variable for polynomial fitting
+                    x = (at[i1[j]:i2[j]+1] - tm) / (at[i2[j]] - at[i1[j]])
+
+                    # Fit polynomials of degree DE
+                    c = np.polyfit(x, SIDX[i1[j]:i2[j]+1], DE)
+                    c15 = np.polyfit(x, SIDX15[i1[j]:i2[j]+1], DE)
+
+                    # Evaluate polynomial fit
+                    y[i1[j]:i2[j]+1] = np.polyval(c, x)
+                    y15[i1[j]:i2[j]+1] = np.polyval(c15, x)
+
+                    # Compute RMS of residuals
+                    rms = np.std(SIDX[i1[j]:i2[j]+1] - y[i1[j]:i2[j]+1])
+                    rms15 = np.std(SIDX15[i1[j]:i2[j]+1] - y15[i1[j]:i2[j]+1])
                 else:
-                    y[i1[j]:i2[j]] = SIDX[i1[j]:i2[j]]
+                    # For single-point arcs, no fitting is performed
+                    y[i1[j]:i2[j]+1] = SIDX[i1[j]:i2[j]+1]
                     rms = 0.0
-    
-                    y15[i1[j]:i2[j]] = SIDX15[i1[j]:i2[j]]
+                    y15[i1[j]:i2[j]+1] = SIDX15[i1[j]:i2[j]+1]
                     rms15 = 0.0
-    
-                # Upper and lower limits
-                yup[i1[j]:i2[j]] = y[i1[j]:i2[j]] + SIGMA*rms
-                ydown[i1[j]:i2[j]] = y[i1[j]:i2[j]] - SIGMA*rms
-    
-                yup15[i1[j]:i2[j]] = y15[i1[j]:i2[j]] + SIGMA*rms15
-                ydown15[i1[j]:i2[j]] = y15[i1[j]:i2[j]] - SIGMA*rms15
-    
-    
-            # Create mask
-            mask = np.abs(SIDX - y) > (yup - ydown)/2.0
-    
-            # Discard the masked values (the outliers)...
-            alatm = alat[~ mask]
-            alonm = alon[~ mask]
-            ahhm = ahh[~ mask]
-            # aazm = aaz[~ mask]
-            atm = at[~ mask]
-            SIDXm = SIDX[~ mask]
-            SIDXm15 = SIDX15[~ mask]
-            elevm = elev[~ mask]
-    
-            cutoff = np.where(elevm>=elev_angle)
-    
+
+                # Define upper and lower bounds for outlier detection
+                yup[i1[j]:i2[j]+1] = y[i1[j]:i2[j]+1] + SIGMA * rms
+                ydown[i1[j]:i2[j]+1] = y[i1[j]:i2[j]+1] - SIGMA * rms
+
+                yup15[i1[j]:i2[j]+1] = y15[i1[j]:i2[j]+1] + SIGMA * rms15
+                ydown15[i1[j]:i2[j]+1] = y15[i1[j]:i2[j]+1] - SIGMA * rms15
+
+             # Create a mask to identify outliers based on polynomial fit
+            mask = np.abs(SIDX - y) > (yup - ydown) / 2.0
+
+            # Remove masked values (outliers)
+            alatm = alat[~mask]
+            alonm = alon[~mask]
+            ahhm = ahh[~mask]
+            atm = at[~mask]
+            SIDXm = SIDX[~mask]
+            SIDXm15 = SIDX15[~mask]
+            elevm = elev[~mask]
+
+            # Apply elevation angle cutoff
+            cutoff = np.where(elevm >= elev_angle)
+
+            # Final filtered data
             alat = alatm[cutoff]
             alon = alonm[cutoff]
             ahh = ahhm[cutoff]
-            # aaz = aazm[cutoff]
             at = atm[cutoff]
             SIDX = SIDXm[cutoff]
             SIDX15 = SIDXm15[cutoff]
             elev = elevm[cutoff]
-    
-    
-            # # Results to standard output...
+
+            # Optional: print SIDX results to stdout (commented out)
             # for i in range(SIDX.size):
-            #     print("%13.8f %13.8f %13.8f %13.8f %16.10f %6.3f %s %s" % (alon[i], alat[i], ahh[i], at[i], elev[i], SIDX[i], station, sat1))  # ,OBS))
-    
-            # Initialize a dictionary to store the data for this satellite
+            #     print("%13.8f %13.8f %13.8f %13.8f %16.10f %6.3f %s %s" %
+            #           (alon[i], alat[i], ahh[i], at[i], elev[i], SIDX[i], station, sat1))
+
+            # Store the cleaned and processed results for the current satellite
             satellite_data = {
                 'MJD': at,
                 'Longitude': alon,
@@ -471,14 +443,14 @@ def SIDXcalc(station,doy,year,input_folder,destination_directory):
                 'STA': station,
                 'SAT': sat1
             }
-    
-            # Add the satellite data dictionary to the list
+
+            # Append this satellite's data to the full list
             satellites_data.append(satellite_data)
-    
-        # Concatenate all the data dictionaries into a DataFrame
+
+        # Combine the data from all satellites into a single DataFrame
         concatenated_df = pd.concat([pd.DataFrame(dados) for dados in satellites_data], ignore_index=True)
-    
-        # Group by MJD and calculate the mean of SIDX and other numeric columns
+
+        # Group data by MJD to compute mean values across all satellites for each epoch
         df_mean = concatenated_df.groupby('MJD').agg({
             'Longitude': 'mean',
             'Latitude': 'mean',
@@ -486,125 +458,100 @@ def SIDXcalc(station,doy,year,input_folder,destination_directory):
             'Elevation': 'mean',
             'SIDX': 'mean',
             'SIDX15': 'mean',
-            'STA': 'first',  # For non-numeric columns, take the first value (if desired)
-            'SAT': 'first'   # Take the first value for each epoch
+            'STA': 'first',  # Use the first non-numeric entry (station)
+            'SAT': 'first'   # Use the first satellite ID
         }).reset_index()
-    
+
+        # Define output file path
         output_directory = os.path.join(destination_directory, station.upper())
         full_path = output_directory
         file_name = f"{station}_{doy}_{year}_{satx}_SIDX.txt"
         output_file_path = os.path.join(full_path, file_name)
-    
-        # Ensure the directory exists
+
+        # Create output directory if it doesn't exist
         os.makedirs(full_path, exist_ok=True)
-    
-        # Save the selected DataFrame to a tab-separated text file
+
+        # Save the full dataset to a .txt file (tab-separated, using -999999.999 for missing values)
         concatenated_df.to_csv(output_file_path, sep='\t', index=False, na_rep='-999999.999')
-    
-        # Sort the DataFrame by MJD before plotting
+
+        # Sort data by MJD to prepare for plotting
         concatenated_df = concatenated_df.sort_values(by='MJD')
-    
-        # Plotting SIDX for the current satellite with a color from the palette
-        #color = palette(idx / len(satellites_to_plot))
-        # Plotting the smoothed line connecting the segments
-        # plt.plot(concatenated_df['MJD'], concatenated_df['SIDX'], color='red', drawstyle='default')
-    
-        # Defina as cores fixas para GPS e GLONASS
+
+        # Define fixed color mapping for satellite systems
         color_map = {'G': 'blue', 'R': 'red'}
 
+        # Convert MJD to datetime for plotting
+        base_date = datetime(1858, 11, 17)
+        concatenated_df['datetime'] = concatenated_df['MJD'].astype(float).apply(lambda x: base_date + timedelta(days=x))
 
+        # Define colors and labels for each GNSS system
+        if satx == 'G':
+            color_sidx = 'navy'
+            label_sidx = 'SIDX: L1-L2 (GPS)'
+            color_sidx15 = 'blue'
+            label_sidx15 = 'SIDX: L1-L5 (GPS)'
+        elif satx == 'R':
+            color_sidx = 'red'
+            label_sidx = 'SIDX: L1-L2 (GLONASS)'
+            color_sidx15 = 'orange'
+            label_sidx15 = 'SIDX: L2-L3 (GLONASS)'
+        else:
+            color_sidx = 'gray'
+            label_sidx = f'SIDX - {satx}'
+            color_sidx15 = 'darkgray'
+            label_sidx15 = f'SIDX15 - {satx}'
 
+        # Plot raw SIDX values
+        #plt.scatter(concatenated_df['datetime'], concatenated_df['SIDX'], marker='o', s=30, color=color_sidx, label=label_sidx)
+        #plt.scatter(concatenated_df['datetime'], concatenated_df['SIDX15'], marker='o', s=30, color=color_sidx15, label=label_sidx15)
 
-        # Define the data
-        x = df_mean['MJD'].values
-        y = df_mean['SIDX'].values
-    
-        # Find the gaps (for example, where the deltas between points are greater than a limit value)
-        # We will consider a gap if the difference is greater than a certain threshold
-        threshold = 0.01  # Adjust as needed
-        mask = np.diff(x) > threshold
-    
-        # Create a new variable for the gap points, with gap values as NaN
-        x_gap = np.insert(x, np.where(mask)[0] + 1, np.nan)
-        y_gap = np.insert(y, np.where(mask)[0] + 1, np.nan)
-    
-        # Plot the points and the lines connected only where there is continuous data
-        #plt.plot(x_gap, y_gap * 10, color=color[i], label='SIDX', linewidth=2)  # line connecting the points
+        # SIDX from GPS or GLONASS is averaged only when data from multiple satellites are available at the same time epochs, minimizing noise and inter-satellite biases.
+        base_date = datetime(1858, 11, 17)
 
-        label_str = f"SIDX {'GPS' if satx == 'G' else 'GLONASS'}" if not label_plotted else None
-        plt.plot(x_gap, y_gap * 10, color=color_map[satx], linewidth=2, label=label_str)
-        label_plotted = True
+        # GPS
+        df_gps = df_mean[df_mean['SAT'].str.startswith('G')]
+        xx_gps = df_gps['MJD'].values
+        yy_gps = df_gps['SIDX'].values
+        mask_gps = np.diff(xx_gps) > 0.01
+        xx_gap_gps = np.insert(xx_gps, np.where(mask_gps)[0] + 1, np.nan)
+        yy_gap_gps = np.insert(yy_gps, np.where(mask_gps)[0] + 1, np.nan)
+        datetime_gap_gps = [base_date + timedelta(days=val) if not np.isnan(val) else np.nan for val in xx_gap_gps]
+        plt.plot(datetime_gap_gps, yy_gap_gps * 10, color='blue', linewidth=2, label='SIDX (GPS)', zorder=11)
 
+        # GLONASS
+        df_glonass = df_mean[df_mean['SAT'].str.startswith('R')]
+        xx_glonass = df_glonass['MJD'].values
+        yy_glonass = df_glonass['SIDX'].values
+        mask_glonass = np.diff(xx_glonass) > 0.01
+        xx_gap_glonass = np.insert(xx_glonass, np.where(mask_glonass)[0] + 1, np.nan)
+        yy_gap_glonass = np.insert(yy_glonass, np.where(mask_glonass)[0] + 1, np.nan)
+        datetime_gap_glonass = [base_date + timedelta(days=val) if not np.isnan(val) else np.nan for val in xx_gap_glonass]
+        plt.plot(datetime_gap_glonass, yy_gap_glonass * 10, color='red', linewidth=2, label='SIDX (GLONASS)', zorder=12)
 
-
-        # plt.scatter(x, y, color='red', label='Data Points', marker='s',s=20, zorder=3)  # Scatter points
-    
-        # Assuming 'mjd' is a list of MJD values in string format
-        # Convert MJD values to datetime objects
-        start_time_mjd = min(map(float, mjd))
-        start_time_datetime = datetime(1858, 11, 17) + timedelta(days=start_time_mjd)
-        datetimes = [start_time_datetime + timedelta(days=float(at_val)) for at_val in mjd]
-    
-        # Set x-axis format to display only hour and minute
+        # Configure time axis (x-axis)
         hours_fmt = mdates.DateFormatter('%H')
-    
-        # Set hour locator for 1-hour intervals
         hour_locator = mdates.HourLocator(interval=2)
-    
-        # Configure the plot
         plt.gca().xaxis.set_major_formatter(hours_fmt)
         plt.gca().xaxis.set_major_locator(hour_locator)
 
-        # from matplotlib.dates import date2num
-        #
-        # # Define o intervalo de tempo desejado
-        # start_time = datetime(year=int(year), month=1, day=1) + timedelta(days=int(doy) - 1, hours=9)
-        # end_time = datetime(year=int(year), month=1, day=1) + timedelta(days=int(doy) - 1, hours=14)
-        #
-        # # Converte as datas para o formato numérico usado no eixo x (MJD)
-        # mjd_start = (start_time - datetime(1858, 11, 17)).total_seconds() / 86400.0
-        # mjd_end = (end_time - datetime(1858, 11, 17)).total_seconds() / 86400.0
-        #
-        # # Aplica o limite no eixo X
-        # plt.xlim(mjd_start, mjd_end)
-
-    
-        # Increase the size of the x-axis labels
-        plt.xticks(fontsize=14)
-    
-        # Set y-axis label
-        plt.ylabel('SIDX (mTECU/sec)', fontsize=16)
-    
-        # Set x-axis label
+        # Plot styling
         plt.xlabel('Time (UT)', fontsize=16)
-    
-        # Increase the size of the y-axis labels
+        plt.ylabel('SIDX (mTECU/sec)', fontsize=16)
+        plt.title(f"GNSS Station: {station.upper()} | Year: {year} | DOY: {doy}", fontsize=18)
+        plt.xticks(fontsize=14)
         plt.yticks(fontsize=14)
-    
-        # Set plot title
-        plt.title(rf"GNSS Station: {station} ({doy}/{year})", fontsize=18)
-    
-        #plt.ylim(-10,20)
-        plt.grid(True)
+        plt.grid(True, linestyle='--', linewidth=1, color='gray')
+
+        # Remove duplicate labels in legend
+        handles, labels = plt.gca().get_legend_handles_labels()
+        by_label = dict(zip(labels, handles))
+        plt.legend(by_label.values(), by_label.keys(), bbox_to_anchor=(1.0, 1), loc='upper left', fontsize=13)
         plt.tight_layout()
 
-        plt.legend(fontsize=14)
-
-    
+        # Save figure
         file_name_png = f"{station}_{doy}_{year}_SIDX.png"
         output_file_path_png = os.path.join(full_path, file_name_png)
-    
-        plt.gca().xaxis.set_major_formatter(hours_fmt)
-    
-        # # Display the plot
-        # plt.show()
-    
-        # Save the figure with 300 DPI
         plt.savefig(output_file_path_png, dpi=300)
-
-
-
-
-
-
+    if show_plot:
+        plt.show()
 
