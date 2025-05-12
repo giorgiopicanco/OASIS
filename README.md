@@ -119,7 +119,7 @@ python main.py
 - `RNX_SCREENING.py` – Refines arc definitions and detects outliers and cycle slips using ∆MW residuals and polynomial fitting. Output: `STAT_SAT_DOY_YYYY.RNX2`.
 - `RNX_LEVELLING.py` – Performs arc-wise geometry-free leveling on refined data arcs. Output: `STAT_SAT_DOY_YYYY.RNX3`.
 - `ROTI_CALC.py` – Calculates the Rate of TEC Index (ROTI) from leveled geometry-free combinations in `.RNX3`.
-- `DTEC_CALC.py` – Calculates the detrended TEC index (ΔTEC) using 15-minute and 60-minute moving averages of leveled combinations.
+- `DTEC_CALC.py` – Calculates the TEC anomaly index (ΔTEC) using 15-minute and 60-minute moving averages of leveled combinations.
 - `SIDX_CALC.py` – Calculates the Sudden Ionospheric Disturbance Index (SIDX) as the mean absolute value of ROT in 1-minute windows.
 - `linear_combinations.py`, `gnss_freqs.py`, `settings.py`, `glonass_channels.dat`, etc. – Supporting modules for GNSS frequency combinations, coordinate transformations, and IPP computation.
 
@@ -156,7 +156,7 @@ python main.py
 ## ΔTEC Example
 <p align="center"> <img src="img/dtec_example.png" alt="ΔTEC Example" width="700"/> </p>
 
-Example of detrended TEC (ΔTEC) for GPS (L1–L2, L1–L5) and GLONASS (L1–L2) signals at station TONO (year 2024, doy 132). The ΔTEC index highlights positive and negative anomalies, particularly associated with wave-like ionospheric disturbances and density gradients observed during the May 2024 geomagnetic storm (the Mother’s Day Storm).
+Example of TEC anomaly index (ΔTEC) for GPS (L1–L2, L1–L5) and GLONASS (L1–L2) signals at station TONO (year 2024, doy 132). The ΔTEC index highlights positive and negative anomalies, particularly associated with wave-like ionospheric disturbances and density gradients observed during the May 2024 geomagnetic storm (the Mother’s Day Storm).
 
 ---
 
