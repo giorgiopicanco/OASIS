@@ -149,7 +149,21 @@ python main.py
   <img src="img/roti_example.png" alt="ROTI Example" width="700"/>
 </p>
 
-*Example of Rate of TEC Index (ROTI) for GPS (L1–L2, L1–L5) and GLONASS (L1–L2, L2–L3) signals at station BOAV (year 2023, day 049). This plot highlights ionospheric irregularities typically associated with nighttime equatorial plasma bubbles. Elevated ROTI values are observed between 00:00 and 07:00 UT, and again after 23:00 UT, consistent with post-sunset and pre-dawn plasma bubble activity.*
+*Example of Rate of TEC Index (ROTI) for GPS (L1–L2, L1–L5) and GLONASS (L1–L2, L2–L3) signals at station BOAV (year 2023, doy 049). This plot highlights ionospheric irregularities typically associated with nighttime equatorial plasma bubbles. Elevated ROTI values are observed between 00:00 and 07:00 UT, and again after 23:00 UT, consistent with post-sunset and pre-dawn plasma bubble activity.*
+
+---
+
+## ΔTEC Example
+<p align="center"> <img src="img/dtec_example.png" alt="ΔTEC Example" width="700"/> </p>
+
+Example of detrended TEC (ΔTEC) for GPS (L1–L2, L1–L5) and GLONASS (L1–L2) signals at station TONO (year 2024, doy 132). The ΔTEC index highlights positive and negative anomalies, particularly associated with wave-like ionospheric disturbances and density gradients observed during the May 2024 geomagnetic storm (the Mother’s Day Storm).
+
+---
+
+## SIDX Example
+<p align="center"> <img src="img/sidx_example.png" alt="SIDX Example" width="700"/> </p>
+
+Example of the Sudden Ionospheric Disturbance Index (SIDX) for GPS at station PTBB (year 2017, day 249). The intense SIDX enhancements observed around 09:00 UT and 12:00 UT are associated with X-class solar flares during the September 2017 geomagnetic storm.
 
 ---
 
