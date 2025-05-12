@@ -67,4 +67,4 @@ def SP3intp(year,doy,input_folder,output_folder):
         output_file_name = os.path.join(output_folder, f'ORBITS_{year}_{doy}.SP3')
         df_satellite.to_csv(output_file_name, sep='\t', index=False)
         print()
-        print(f"Original data file saved to: {output_file_name}")
+        print(f"Processed tabular data saved to: {output_file_name}")

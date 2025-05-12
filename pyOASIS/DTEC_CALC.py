@@ -49,7 +49,7 @@ def DTECcalc(station, doy, year, input_folder, destination_directory, show_plot=
     elev_angle = 30      # Elevation cutoff angle in degrees
 
     # Build the full path to the station-specific subdirectory
-    path_ = os.path.join(input_folder, station)
+    path_ = os.path.join(input_folder)
 
     # Check if the directory for the given station exists
     if os.path.exists(path_):
@@ -180,7 +180,9 @@ def DTECcalc(station, doy, year, input_folder, destination_directory, show_plot=
     # Loop through each GNSS class (e.g., GPS, GLONASS)
     for sat in sat_classes:
         satx = sat
-
+        print()
+        print(f"Calculating DTEC for {station.upper()}  |  Year: {year}  |  DOY: {doy}")
+        print()
         # Filter list of satellites that belong to the current GNSS system
         if satx:
             satellites_to_plot = [sv for sv in np.unique(satellites) if sv.startswith(satx)]
@@ -194,7 +196,7 @@ def DTECcalc(station, doy, year, input_folder, destination_directory, show_plot=
         #for sat1 in satellites_to_plot:
         for idx, sat1 in enumerate(satellites_to_plot, start=1):
             print(f"Processing satellite {sat1} ({idx} of {len(satellites_to_plot)} in {satx} system)...")
-
+            print()
             # Find all indices where the satellite ID matches sat1
             indices = np.where(np.array(satellites) == sat1)[0]
 
@@ -533,7 +535,7 @@ def DTECcalc(station, doy, year, input_folder, destination_directory, show_plot=
         }).reset_index()
 
         # Build the output file path for saving data
-        output_directory = os.path.join(destination_directory, station.upper())
+        output_directory = os.path.join(destination_directory)
         file_name = f"{station}_{doy}_{year}_{satx}_DTEC.txt"
         output_file_path = os.path.join(output_directory, file_name)
 

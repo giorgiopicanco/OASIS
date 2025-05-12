@@ -17,7 +17,7 @@ from pyOASIS import gnss_freqs
 import warnings
 import pyOASIS
 
-def RNXclean(station_name,day_of_year,year,output_folder,input_folder,orbit_folder):
+def RNXclean(station_name,day_of_year,year,input_folder,orbit_folder,output_folder):
 
     # Accessing the frequencies of the GPS system
     gps_freqs = gnss_freqs.FREQUENCY[gnss_freqs.GPS]
@@ -86,7 +86,18 @@ def RNXclean(station_name,day_of_year,year,output_folder,input_folder,orbit_fold
     
         # Supressing warning about timedelta
         warnings.filterwarnings("ignore", message="Converting non-nanosecond precision datetime values to nanosecond precision.", category=UserWarning)
-        obs_data = gr.load(rinex_file_path)
+        #obs_data = gr.load(rinex_file_path)
+
+
+        try:
+            # Tenta carregar normalmente
+            obs_data = gr.load(rinex_file_path)
+        except IndexError as e:
+            print(f"[WARNING] IndexError when loading: {rinex_file_path}")
+            print("[INFO] Retrying with only GPS satellites...")
+            # Fallback: só GPS
+            obs_data = gr.load(rinex_file_path, use='G')
+
 
         print()
     
@@ -129,7 +140,6 @@ def RNXclean(station_name,day_of_year,year,output_folder,input_folder,orbit_fold
     
         # Sorting the list based on the initial letter and the last two digits
         sorted_common_elements_list = sorted(common_elements_list, key=lambda x: (order[x[0]], int(x[-2:])))
-
     
         for sat in sorted_common_elements_list:
             print()
@@ -714,7 +724,7 @@ def RNXclean(station_name,day_of_year,year,output_folder,input_folder,orbit_fold
     
             file_name = f"{station_name.upper()}_{sat}_{day_of_year}_{year}.RNX1"
     
-            output_directory = os.path.join(output_folder, station_name.upper())
+            output_directory = os.path.join(output_folder)
             full_path = output_directory
     
     

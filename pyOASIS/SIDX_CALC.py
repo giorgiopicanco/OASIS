@@ -45,7 +45,7 @@ def SIDXcalc(station, doy, year, input_folder, destination_directory, show_plot=
     elev_angle = 20 # Elevation angle cutoff (in degrees) to filter low-angle observations
 
     # Build the full path to the station directory
-    path_ = os.path.join(input_folder, station)
+    path_ = os.path.join(input_folder)
     print(path_)
 
     # Check if the station directory exists
@@ -62,7 +62,7 @@ def SIDXcalc(station, doy, year, input_folder, destination_directory, show_plot=
         # Print the number of valid RINEX3 files found
         print()
         number_of_files = len(ord_files)
-        print("Number of RINEX_SCREENED files in the directory:", number_of_files)
+        print("Number of RINEX_LEVELLING (.RNX3) files in the directory:", number_of_files)
     else:
         print("The specified directory does not exist.")
     print()
@@ -159,6 +159,9 @@ def SIDXcalc(station, doy, year, input_folder, destination_directory, show_plot=
 
     # Loop through each GNSS constellation class
     for sat in sat_classes:
+        print()
+        print(f"Calculating SIDX for {station.upper()}  |  Year: {year}  |  DOY: {doy}")
+        print()
         label_plotted = False  # Used to avoid repeating legend entries
         satx = sat
 
@@ -172,7 +175,10 @@ def SIDXcalc(station, doy, year, input_folder, destination_directory, show_plot=
         satellites_data = []
 
         # Loop through each individual satellite (e.g., G01, G02, R01...)
-        for sat1 in satellites_to_plot:
+        #for sat1 in satellites_to_plot:
+        for idx, sat1 in enumerate(satellites_to_plot, start=1):
+            print(f"Processing satellite {sat1} ({idx} of {len(satellites_to_plot)} in {satx} system)...")
+            print()
             # Get the indices in the full list where this satellite appears
             indices = np.where(np.array(satellites) == sat1)[0]
 
@@ -447,6 +453,11 @@ def SIDXcalc(station, doy, year, input_folder, destination_directory, show_plot=
             # Append this satellite's data to the full list
             satellites_data.append(satellite_data)
 
+        # Skip system if no data found
+        if not satellites_data:
+            print(f"No data found for {satx} system. Skipping...")
+            continue
+
         # Combine the data from all satellites into a single DataFrame
         concatenated_df = pd.concat([pd.DataFrame(dados) for dados in satellites_data], ignore_index=True)
 
@@ -463,7 +474,7 @@ def SIDXcalc(station, doy, year, input_folder, destination_directory, show_plot=
         }).reset_index()
 
         # Define output file path
-        output_directory = os.path.join(destination_directory, station.upper())
+        output_directory = os.path.join(destination_directory)
         full_path = output_directory
         file_name = f"{station}_{doy}_{year}_{satx}_SIDX.txt"
         output_file_path = os.path.join(full_path, file_name)

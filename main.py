@@ -9,26 +9,40 @@ sta = "BOAV"  # Converted to lowercase manually as per "${sta,,}"
 doy = "049"  # Day of the year
 year = "2023"  # Year
 
-input_dir = "/home/debian-giorgio/pyOASIS/pyOASIS/INPUT"
-output_dir = "/home/debian-giorgio/pyOASIS/pyOASIS/OUTPUT"
-sta_dir = Path(output_dir) / sta  # Construct the station directory path
-print(sta_dir)
+# Directory input for rinex and MGEX orbits
+input_rinex = "/home/debian-giorgio/pyOASIS/pyOASIS/INPUT/RINEX"
+input_orbits = "/home/debian-giorgio/pyOASIS/pyOASIS/INPUT/ORBITS"
 
-# Create the directory if it does not exist
-Path(output_dir).mkdir(parents=True, exist_ok=True)
+output_base_dir = "/home/debian-giorgio/pyOASIS/pyOASIS/OUTPUT"
+sta_output = Path(output_base_dir) / year / doy / sta  # Construct the station directory path
+orbit_output = Path(output_base_dir) / year / doy / "ORBITS"  # Construct the station directory path
 
-#pyOASIS.SP3intp(year,doy,input_dir,output_dir)
+# Create the output directory (and parent directories if needed)
+Path(sta_output).mkdir(parents=True, exist_ok=True)
+Path(orbit_output).mkdir(parents=True, exist_ok=True)
 
-#pyOASIS.RNXclean(sta,doy,year,output_dir,input_dir,output_dir)
+# Interpolate satellite orbits using SP3 files for the given day of year and year
+pyOASIS.SP3intp(year,doy,input_orbits,orbit_output)
 
-#pyOASIS.RNXScreening(sta_dir)
+# Convert raw RINEX observation files (.yyo) to internal GNSS-clean format, performing
+# initial detection of cycle slips, outliers, and identifying data gaps (arcs). (Output: .RNX1 files).
+pyOASIS.RNXclean(sta,doy,year,input_rinex,orbit_output,sta_output)
 
-#pyOASIS.RNXlevelling(sta,sta_dir,show_plot=True)
+# Screen GNSS observations by eliminating corrupt arcs and performing a refined second-pass
+# detection of cycle slips and outliers (mini-arcs). (Output: .RNX2 files).
+pyOASIS.RNXScreening(sta_output)
 
-pyOASIS.ROTIcalc(sta, doy, year, output_dir, output_dir,show_plot=True)
+# Apply geometry-free leveling to remove satellite and receiver biases, performing a third-pass
+# detection of outliers and cycle slips. (Output: .RNX3 files).
+pyOASIS.RNXlevelling(sta,sta_output,show_plot=True)
 
-#pyOASIS.DTECcalc(sta, doy, year, output_dir, output_dir, show_plot=True)
+# Compute the Rate of TEC Index (ROTI) using leveled geometry-free data from .RNX3 files.
+pyOASIS.ROTIcalc(sta, doy, year, sta_output, sta_output,show_plot=True)
 
-pyOASIS.SIDXcalc(sta, doy, year, output_dir, output_dir)
+# Compute the Delta TEC index using leveled geometry-free data from .RNX3 files.
+pyOASIS.DTECcalc(sta, doy, year, sta_output, sta_output, show_plot=True)
+
+# Compute the SIDX index using leveled geometry-free data from .RNX3 files.
+pyOASIS.SIDXcalc(sta, doy, year, sta_output, sta_output, show_plot=True)
 
 #%%

@@ -38,7 +38,7 @@ def ROTIcalc(estacao,doy,ano,diretorio_principal,destination_directory, show_plo
     # === Directory and file handling ===
 
     # Construct the full path to the station directory
-    caminho_ = os.path.join(diretorio_principal, estacao)
+    caminho_ = os.path.join(diretorio_principal)
 
     # Check if the directory exists
     if os.path.exists(caminho_):
@@ -58,7 +58,7 @@ def ROTIcalc(estacao,doy,ano,diretorio_principal,destination_directory, show_plo
     
         print()
         numero_de_arquivos = len(arquivos_ordenados)
-        print("Number of leveled RINEX files (.RNX3) in the directory:", numero_de_arquivos)
+        print("Number of RINEX_LEVELLING (.RNX3) files in the directory:", numero_de_arquivos)
     else:
         print("Specified directory does not exist.")
     print()
@@ -136,6 +136,9 @@ def ROTIcalc(estacao,doy,ano,diretorio_principal,destination_directory, show_plo
     
     for sat in sat_classes:
         satx=sat
+        print()
+        print(f"Calculating ROTI for {estacao.upper()}  |  Year: {ano}  |  DOY: {doy}")
+        print()
         # Filter satellite PRNs by class
         if satx:
             satellites_to_plot = [sv for sv in np.unique(satellites) if sv.startswith(sat)]
@@ -145,9 +148,10 @@ def ROTIcalc(estacao,doy,ano,diretorio_principal,destination_directory, show_plo
         # Initialize list to collect data
         dados_satelites = []
     
-        for sat1 in satellites_to_plot:
+        #for sat1 in satellites_to_plot:
+        for idx, sat1 in enumerate(satellites_to_plot, start=1):
+            print(f"Processing satellite {sat1} ({idx} of {len(satellites_to_plot)} in {satx} system)...")
             print()
-            print(f"Processing {sat1} satellite...")
             indices = np.where(np.array(satellites) == sat1)[0]
     
             # Initializing filtered lists for each satellite
@@ -411,12 +415,17 @@ def ROTIcalc(estacao,doy,ano,diretorio_principal,destination_directory, show_plo
     
             # Append this satellite's data to the list
             dados_satelites.append(dados_satelite)
+
+        # Skip system if no data found
+        if not dados_satelites:
+            print(f"No data found for {satx} system. Skipping...")
+            continue
     
         # Concatenate all satellite data dictionaries into a single DataFrame
         df_concatenado = pd.concat([pd.DataFrame(dados) for dados in dados_satelites], ignore_index=True)
     
         # Define the output directory and file path
-        output_directory = os.path.join(destination_directory, estacao.upper())
+        output_directory = os.path.join(destination_directory)
         full_path = output_directory
         file_name = f"{estacao}_{doy}_{ano}_{satx}_ROTI.txt"
         output_file_path = os.path.join(full_path, file_name)
