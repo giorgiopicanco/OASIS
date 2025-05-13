@@ -21,6 +21,15 @@ OASIS automates the detection and correction of cycle slips and outliers, perfor
 
 ---
 
+## Installation
+
+To install the package, simply run:
+
+```bash
+pip install pyOASIS
+
+---
+
 ## Installation Requirements
 
 - Python 3.8 or higher
