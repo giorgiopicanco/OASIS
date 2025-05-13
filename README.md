@@ -27,6 +27,7 @@ To install the package, simply run:
 
 ```bash
 pip install pyOASIS
+```
 
 ---
 
