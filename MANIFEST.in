@@ -1,0 +1,5 @@
+include requirements.txt
+include README.md
+include LICENSE
+include CITATION.cff
+include pyOASIS/glonass_channels.dat
