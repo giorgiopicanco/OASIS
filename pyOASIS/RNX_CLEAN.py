@@ -1,17 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Single file: Integrated RNXclean + RNXScreening
 
-ATTENTION:
-- No internal logic was changed.
-- I only connected the first code to the second by calling RNXScreening(output_folder)
-  at the end of RNXclean, after all .RNX1 files are saved.
-"""
-
-# =========================
-# Imports (kept as in original)
-# =========================
+# ===============
+# Imports
+# ===============
 import pyOASIS
 import georinex as gr
 from pyOASIS import settings
@@ -31,26 +23,10 @@ import warnings
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 from matplotlib import font_manager
-
-import numpy as np
-from numpy.polynomial import Polynomial
-
-# (imports from the second block, kept)
 from datetime import datetime
-import matplotlib.pyplot as plt
-import os
-import sys
-import numpy as np
-import pandas as pd
-import matplotlib.dates as mdates
 from scipy.optimize import curve_fit
 import itertools
-import warnings
-from numpy.polynomial import Polynomial
-from pyOASIS import gnss_freqs
 from pyOASIS import screening_settings
-from pyOASIS import settings
-import pyOASIS
 from collections import OrderedDict
 
 
