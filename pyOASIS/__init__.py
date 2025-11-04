@@ -9,4 +9,4 @@ from .SIDX_CALC import SIDXcalc
 from .RNX_CLEAN import RNXclean
 from .SP3_INTERPOLATE import SP3intp
 from .RNX_LEVELLING import RNXlevelling
-from .RNX_SCREENING import RNXScreening
+from .TEC_CAL import TECcalc

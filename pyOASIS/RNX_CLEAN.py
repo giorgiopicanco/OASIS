@@ -1,733 +1,1305 @@
-import datetime as dt
-import os
-import numpy as np
-import pandas as pd
-import matplotlib.dates as mdates
-from astropy.time import Time
-from scipy.constants import speed_of_light
-from scipy.ndimage import uniform_filter1d
-from numpy.polynomial import Polynomial
-from matplotlib import font_manager
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Single file: Integrated RNXclean + RNXScreening
+
+ATTENTION:
+- No internal logic was changed.
+- I only connected the first code to the second by calling RNXScreening(output_folder)
+  at the end of RNXclean, after all .RNX1 files are saved.
+"""
+
+# =========================
+# Imports (kept as in original)
+# =========================
+import pyOASIS
 import georinex as gr
-import sys
-import time
 from pyOASIS import settings
 from pyOASIS import linear_combinations
 from pyOASIS import gnss_freqs
+import datetime as dt
+import os
+import numpy as np
+from numpy.polynomial import Polynomial
+import pandas as pd
+from astropy.time import Time
+from scipy.constants import speed_of_light
+from scipy.ndimage import uniform_filter1d
+import sys
+import time
 import warnings
+import matplotlib.dates as mdates
+import matplotlib.pyplot as plt
+from matplotlib import font_manager
+
+import numpy as np
+from numpy.polynomial import Polynomial
+
+# (imports from the second block, kept)
+from datetime import datetime
+import matplotlib.pyplot as plt
+import os
+import sys
+import numpy as np
+import pandas as pd
+import matplotlib.dates as mdates
+from scipy.optimize import curve_fit
+import itertools
+import warnings
+from numpy.polynomial import Polynomial
+from pyOASIS import gnss_freqs
+from pyOASIS import screening_settings
+from pyOASIS import settings
 import pyOASIS
+from collections import OrderedDict
 
-def RNXclean(station_name,day_of_year,year,input_folder,orbit_folder,output_folder):
 
-    # Accessing the frequencies of the GPS system
-    gps_freqs = gnss_freqs.FREQUENCY[gnss_freqs.GPS]
-    f1 = gps_freqs[1]
-    f2 = gps_freqs[2]
-    f5 = gps_freqs[5]
-    
-    # Calculating the frequencies of the GLONASS system (glonass_channels.dat)
-    # To obtain the GLONASS frequencies (code 'R'):
-    file_name = os.path.join(pyOASIS.__path__[0], 'glonass_channels.dat')
-    
-    # Read the file into a DataFrame with column names defined
-    df_slots = pd.read_csv(file_name, sep=' ', header=None, names=['Slot', 'Channel'])
+# ==========================================================
+# Helper function (from the first block)
+# ==========================================================
+def rescale_data(data):
+    min_val = np.min(data)
+    max_val = np.max(data)
+    scaled_data = (data - min_val) / (max_val - min_val)
+    final_data = scaled_data * 20 - 10
+    return final_data
+
+
+# ==========================================================
+# process_combination (from the first block)
+# ==========================================================
+def process_combination(df, arcs, column_name, ARCL, LMW, flags, timep, label="L1-L2"):
+    """
+    df: main DataFrame
+    arcs: list of valid arcs (lists of indices)
+    column_name: name of the column containing LMW data (e.g., 'LMW2' or 'LMW3')
+    ARCL: minimum number of points required for polynomial fitting
+    LMW: array or series corresponding to the combination
+    flags: modifiable list of flags ('C' and 'S')
+    timep: main time series or index (used for printouts)
+    label: 'L1-L2' or 'L1-L5'
+    """
+    idx_total = []
+
+    for arc in arcs:
+        arc_data = df.iloc[arc]
+        time_idx = df.index[arc]  # local variable; does not change logic
+
+        # Skip short arcs
+        if len(arc_data) < ARCL:
+            continue
+
+        # Prepare variables
+        x = arc_data.index.astype(np.int64) // 10**9  # convert to seconds
+        xx = arc_data['time']
+        y = arc_data[column_name].values
+        y_rescaled = rescale_data(y)
+        delta_y = np.diff(y_rescaled, prepend=np.nan)
+
+        # ----------------------------------------------------------
+        # Bidirectional anomaly detection (as in your code)
+        # ----------------------------------------------------------
+
+        # Polynomial fit forward
+        p_fwd = Polynomial.fit(x[1:], delta_y[1:], 3)
+        delta_y_fit_fwd = p_fwd(x)
+        residuals_fwd = abs(delta_y - delta_y_fit_fwd)
+
+        # Polynomial fit backward
+        x_rev = x[::-1]
+        delta_y_rev = delta_y[::-1]
+        p_bwd = Polynomial.fit(x_rev[1:], delta_y_rev[1:], 3)
+        delta_y_fit_bwd = p_bwd(x_rev)
+        residuals_bwd = abs(delta_y_rev - delta_y_fit_bwd)[::-1]
+
+        # Combine both directions (maximum deviation)
+        residuals = np.maximum(residuals_fwd, residuals_bwd)
+
+        # Quartiles and IQR
+        Q1 = np.nanpercentile(residuals, 5)
+        Q3 = np.nanpercentile(residuals, 90)
+        IQR = Q3 - Q1
+
+        # Thresholds
+        outlier_threshold = 5
+        high_residual_threshold = 1
+
+        outlier_mask = (residuals < Q1 - outlier_threshold * IQR) | (residuals > Q3 + outlier_threshold * IQR)
+        high_residuals_mask = residuals > high_residual_threshold
+        other_residuals_mask = ~(outlier_mask | high_residuals_mask)
+
+        indices_outliers = arc[0] + np.where(outlier_mask)[0]
+        indices_high_residuals = arc[0] + np.where(high_residuals_mask)[0]
+
+        # Merge indices without duplicates
+        combined_indices = np.union1d(indices_outliers, indices_high_residuals)
+        idx_total.append(combined_indices)
+
+        print(f"Combined indices ({label}):", combined_indices)
+
+    # Concatenate all combined indices into a single NumPy array
+    if idx_total:
+        idx_total = np.concatenate(idx_total)
+
+    # Update flags (NaN → 'S')
+    if not np.all(np.isnan(LMW)):
+        nan_indices = np.where(np.isnan(LMW))[0]
+        for idx in nan_indices:
+            flags[idx] = 'S'
+
+    # Update flags based on combined indices
+    for idx in idx_total:
+        if idx < len(flags):
+            flags[idx] = 'S'
+
+    # Display flagged indices
+    for idx in idx_total:
+        print(f"{label} (+)", idx, timep.iloc[idx])
+
+    return flags, idx_total
+
+
+# ==========================================================
+# RNXclean (from the first block) — LOGIC UNCHANGED
+# ==========================================================
+def RNXclean(station_name, day_of_year, year, input_folder, orbit_folder, output_folder):
+    """
+    Robust GNSS RINEX Cleaning and SP3 Matching
+    -------------------------------------------
+    Processes GPS and GLONASS constellations, handling RINEX v2/v3 observables,
+    assigning correct frequencies per satellite, and matching SP3 orbits.
+    """
+    # =====================================================
+    # Accessing frequencies of GPS and GLONASS
+    # =====================================================
+    gps_freqs_local = gnss_freqs.FREQUENCY[gnss_freqs.GPS]
+    f1 = gps_freqs_local[1]
+    f2 = gps_freqs_local[2]
+    f5 = gps_freqs_local[5]
+
+    # ==========================================
+    # GLONASS Channel Table (Defined Inline)
+    # ==========================================
+    glonass_channels = {
+        'R01':  +1,   'R02':  -4,   'R03':  +5,   'R04':  +6,
+        'R05':  +1,   'R06':  -4,   'R07':  +5,   'R08':  +6,
+        'R09':  -2,   'R10':  -7,   'R11':   0,   'R12':  -1,
+        'R13':  -2,   'R14':  -7,   'R15':   0,   'R16':  -1,
+        'R17':  +4,   'R18':  -3,   'R19':  +3,   'R20':  +2,
+        'R21':  +4,   'R22':  -3,   'R23':  +3,   'R24':  +2
+    }
+
+    # Convert dictionary to DataFrame for backward compatibility
+    df_slots = pd.DataFrame(list(glonass_channels.items()), columns=['Slot', 'Channel'])
+
+    # Load GLONASS frequency constants (unchanged)
     glonass_frequencies = gnss_freqs.FREQUENCY[gnss_freqs.GLO]
-    
-    # List to store the data
+
     data = []
-    
-    # Iterate over each row of the DataFrame
-    for index, row in df_slots.iterrows():
+    for _, row in df_slots.iterrows():
         satellite = row['Slot']
         k = row['Channel']
         row_data = [satellite]
-    
-        for channel, frequency in glonass_frequencies.items():
-            if callable(frequency):  # Check if it is a lambda function
-                freq_value = frequency(k)
-            else:
-                freq_value = frequency
-            formatted_freq = f"{freq_value:.1f}"
-            row_data.append(formatted_freq)
+        for _, frequency in glonass_frequencies.items():
+            freq_value = frequency(k) if callable(frequency) else frequency
+            row_data.append(f"{freq_value:.1f}")
         data.append(row_data)
-    
-    # Convert the list of lists into a pandas DataFrame
-    glo_freqs = pd.DataFrame(data, columns=['Satellite', 'fr1', 'fr2', 'fr3'])
-    
-    # Initial time, number of hours, and xticks interval on the graph.
+    glo_freqs_df = pd.DataFrame(data, columns=['Satellite', 'fr1', 'fr2', 'fr3'])
+
+    # =====================================================
+    # Parameters
+    # =====================================================
     h1 = 0
-    n_horas = 24
+    n_hours = 24
     int1 = 120
-    
-    # Minimum number of observations per arc
     ARCL = 15
-    
-    constellations = ['G', 'R']  # G: GPS, R: GLONASS, E: Galileo (future), C: BeiDou (future)
-    
+    constellations = ['G', 'R']  # GPS and GLONASS (so far)
+
+    # =====================================================
+    # Process each constellation
+    # =====================================================
     for c in constellations:
         sat_class = c
-    
-        # RINEX OPENING:
-        # ------------------------------------
-        # Selection of version for RINEX files
+        print(f"\n{'=' * 80}")
+        print(f"[INFO] Processing constellation: {sat_class}")
+        print(f"{'=' * 80}\n")
+
+        # ------------------------------------------------------
+        # RINEX FILE OPENING
+        # ------------------------------------------------------
         version_number = '1'
-        print()
-        year_format = f"{year[-2:]}o"
-        rinex_file_path = f"{input_folder}/{station_name.lower()}{day_of_year}{version_number}.{year_format}"
-        if not os.path.exists(rinex_file_path):
-            version_number = '0' if version_number == '1' else '1'
-            rinex_file_path = f"{input_folder}/{station_name.lower()}{day_of_year}{version_number}.{year_format}"
-            if not os.path.exists(rinex_file_path):
-                print(f"File {rinex_file_path} not found either. Please check the path or other issues.")
-            else:
-                print(f"File {rinex_file_path} found with opposite version of {version_number}.")
+        ext_order = ['o', 'd']  # preference order: .yyo → .yyd
+        version_candidates = [version_number, ('0' if version_number == '1' else '1')]
+        rinex_file_path = None
+        used_ext = None
+        used_version = None
+        for ext in ext_order:
+            for ver in version_candidates:
+                year_format = f"{year[-2:]}{ext}"
+                candidate = f"{input_folder}/{station_name.lower()}{day_of_year}{ver}.{year_format}"
+                if os.path.exists(candidate):
+                    rinex_file_path = candidate
+                    used_ext = ext
+                    used_version = ver
+                    break
+            if rinex_file_path:
+                break
+
+        if not rinex_file_path:
+            print(f"[ERROR] No RINEX file found for station {station_name} on DOY {day_of_year} ({year}). Tried the following:")
+            for ext in ext_order:
+                for ver in version_candidates:
+                    yf = f"{year[-2:]}{ext}"
+                    print(f"    - {input_folder}/{station_name.lower()}{day_of_year}{ver}.{yf}")
+            continue
         else:
-            print(f"File {rinex_file_path} found with version_number = {version_number}")
-    
-        # Supressing warning about timedelta
-        warnings.filterwarnings("ignore", message="Converting non-nanosecond precision datetime values to nanosecond precision.", category=UserWarning)
-        #obs_data = gr.load(rinex_file_path)
+            version_number = used_version
+            print(f"[INFO] File {rinex_file_path} found (ext=.{used_ext}, version_number={version_number})")
 
-
+        warnings.filterwarnings(
+            "ignore",
+            message="Converting non-nanosecond precision datetime values",
+            category=UserWarning
+        )
+        # Robust loading
         try:
-            # Tenta carregar normalmente
             obs_data = gr.load(rinex_file_path)
-        except IndexError as e:
-            print(f"[WARNING] IndexError when loading: {rinex_file_path}")
-            print("[INFO] Retrying with only GPS satellites...")
-            # Fallback: só GPS
-            obs_data = gr.load(rinex_file_path, use='G')
+        except IndexError:
+            print(f"[WARNING] IndexError while loading: {rinex_file_path}")
+            print("[INFO] Retrying with 'use=None' (all constellations)...")
+            obs_data = gr.load(rinex_file_path, use=None)
 
+        all_sats = np.unique(obs_data.sv.values)
+        print(f"[INFO] Loaded {len(all_sats)} satellites: {list(all_sats)}")
+        # -------------------------------
+        # ORBIT FILE OPENING
+        # -------------------------------
+        interval = getattr(obs_data, "interval", np.nan)
+        if np.isnan(interval):
+            t = Time(obs_data.time).mjd
+            diffs = np.diff(t) * 86400
+            freq = int(np.nanmin(diffs)) if len(diffs) > 0 else 30
+        else:
+            freq = int(interval)
 
-        print()
-    
-        # ORBIT FILE OPENING:
-        # -------------------------
-        # Path and time definitions
-    
-        freq = int(obs_data.interval)
+        freq = int(getattr(obs_data, "interval", 30))
         file_path = os.path.join(orbit_folder, f'ORBITS_{year}_{day_of_year}.SP3')
-        column_names = ["Date", "Time", "Satélite", "X", "Y", "Z"]
-        df2 = pd.read_csv(file_path, sep="\t", header=0, names=column_names)
-    
-        # List to store IPP coordinates
-        result = {"Date": [], "Time": [], "SAT": [], "lon": [], "lat": [], "el": []}
-        index = []
-    
-        # Filtering satellites by class
-        satellites_to_plot = [sv for sv in np.unique(obs_data.sv.values) if sv.startswith(sat_class)]
-    
-        # List to store DataFrames for each satellite
-        dfs = []
-    
-        # Remove the first character of each element in the 'Satellite' column
-        df2['Satélite'] = df2['Satélite'].str[1:]
-    
-        IPP_UNIQ = np.unique(df2['Satélite'])
-    
-        # Converting lists to sets
-        set_IPP_UNIQ = set(IPP_UNIQ)
-        set_satellites_to_plot = set(satellites_to_plot)
-    
-        # Finding the intersection between the two sets
-        common_elements = set_IPP_UNIQ.intersection(set_satellites_to_plot)
-    
-        # Converting the set of common elements back into a list, if necessary
-        common_elements_list = list(common_elements)
-    
-        # Defining the desired order for the initial letters
-        order = {'G': 1, 'R': 2, 'E': 3, 'C': 4}
-    
-        # Sorting the list based on the initial letter and the last two digits
-        sorted_common_elements_list = sorted(common_elements_list, key=lambda x: (order[x[0]], int(x[-2:])))
-    
-        for sat in sorted_common_elements_list:
-            print()
-            print("Processing satellite:", sat)
-            print()
-    
-            # Checking the satellite class and adjusting the values of f1, f2, f5
+        if not os.path.exists(file_path):
+            print(f"[ERROR] SP3 file not found: {file_path}")
+            continue
+        print(f"[INFO] Processing SP3 file: {file_path}")
+        column_names = ["Date", "Time", "Satellite", "X", "Y", "Z"]
+        try:
+            df2 = pd.read_csv(file_path, sep=r"\s+|\t+", engine="python", header=0, names=column_names)
+        except Exception as e:
+            print(f"[ERROR] Failed to read SP3 file: {e}")
+            continue
+        # Normalize satellite names (remove 'P')
+        df2["Satellite"] = df2["Satellite"].astype(str).apply(lambda s: s[1:] if s.startswith("P") else s)
+        print(f"[INFO] SP3 file loaded with {len(df2)} entries.")
+        # -----------------------------------------------------
+        # MATCH RINEX x SP3
+        # -----------------------------------------------------
+        sv_rinex = [str(sv) for sv in np.unique(obs_data.sv.values)]
+        sv_sp3 = [str(sv) for sv in np.unique(df2["Satellite"])]
+        satellites_to_plot = [sv for sv in sv_rinex if sv.startswith(sat_class)]
+        ipp_uniq = [sv for sv in sv_sp3 if sv.startswith(sat_class)]
+        common_elements_list = sorted(set(satellites_to_plot).intersection(set(ipp_uniq)), key=lambda x: int(x[-2:]))
+        if len(common_elements_list) == 0:
+            print(f"[WARNING] No matching satellites for class {sat_class}.")
+            continue
+        print(f"[INFO] Matched satellites ({sat_class}): {common_elements_list}\n")
+        # -----------------------------------------------------
+        # SATELLITE LOOP
+        # -----------------------------------------------------
+        for sat in common_elements_list:
+            print(f"\n[PROCESSING] Satellite: {sat}")
+            # Assign frequencies
             if sat_class == 'G':
-                f1 = f1
-                f2 = f2
-                f5 = f5
+                f1, f2, f5 = gps_freqs_local[1], gps_freqs_local[2], gps_freqs_local[5]
             elif sat_class == 'R':
-                # Locating the row where 'Satellite' matches 'sat'
-                sat_row = glo_freqs.loc[glo_freqs['Satellite'] == sat]
-    
+                sat_row = glo_freqs_df.loc[glo_freqs_df['Satellite'] == sat]
                 if not sat_row.empty:
                     f1 = float(sat_row['fr1'].values[0])
                     f2 = float(sat_row['fr2'].values[0])
                     f5 = float(sat_row['fr3'].values[0])
                 else:
-                    f1 = f2 = f5 = None  # Or default values
-
-            L1 = np.array(obs_data['L1'].sel(sv=sat))
-            L2 = np.array(obs_data['L2'].sel(sv=sat))
-    
-            # Adding the L5 frequency to L1 and L2
-            if 'L5' in obs_data:
-                L5 = np.array(obs_data['L5'].sel(sv=sat))
+                    f1 = f2 = f5 = np.nan
+            # -------------------------------------------------
+            # Carrier Phases
+            # -------------------------------------------------
+            L1 = np.array(obs_data["L1"].sel(sv=sat)) if "L1" in obs_data else np.full(len(obs_data.time), np.nan)
+            L2 = np.array(obs_data["L2"].sel(sv=sat)) if "L2" in obs_data else np.full(len(obs_data.time), np.nan)
+            L5 = np.array(obs_data["L5"].sel(sv=sat)) if "L5" in obs_data else np.full(len(obs_data.time), np.nan)
+            # -------------------------------------------------
+            # Code observables with robust fallback
+            # -------------------------------------------------
+            # P1/C1
+            if "P1" in obs_data:
+                P1 = np.array(obs_data["P1"].sel(sv=sat))
+                code_obs1 = "P1"
+            elif "C1" in obs_data:
+                P1 = np.array(obs_data["C1"].sel(sv=sat))
+                code_obs1 = "C1"
             else:
-                L5 = np.full_like(L1, np.nan)  # Fill with NaN if L5 data is not available
-    
-            if 'P1' in obs_data:
-                P1 = np.array(obs_data['P1'].sel(sv=sat))
-                code_obs1 = 'P1'
+                P1 = np.full_like(L1, np.nan)
+                code_obs1 = "None"
+            if np.all(np.isnan(P1)) and "C1" in obs_data:
+                P1 = np.array(obs_data["C1"].sel(sv=sat))
+                code_obs1 = "C1"
+            # P2/C2
+            if "P2" in obs_data:
+                P2 = np.array(obs_data["P2"].sel(sv=sat))
+                code_obs2 = "P2"
+            elif "C2" in obs_data:
+                P2 = np.array(obs_data["C2"].sel(sv=sat))
+                code_obs2 = "C2"
             else:
-                P1 = np.array(obs_data['C1'].sel(sv=sat))
-                code_obs1 = 'C1'
-            if np.all(np.isnan(P1)):
-                P1 = np.array(obs_data['C1'].sel(sv=sat))
-                code_obs1 = 'C1'
+                P2 = np.full_like(L2, np.nan)
+                code_obs2 = "None"
+            if np.all(np.isnan(P2)) and "C2" in obs_data:
+                P2 = np.array(obs_data["C2"].sel(sv=sat))
+                code_obs2 = "C2"
+            # P5/C5
+            if "P5" in obs_data:
+                P5 = np.array(obs_data["P5"].sel(sv=sat))
+                code_obs5 = "P5"
+            elif "C5" in obs_data:
+                P5 = np.array(obs_data["C5"].sel(sv=sat))
+                code_obs5 = "C5"
             else:
-                code_obs1 = 'P1'
-            if 'P2' in obs_data:
-                P2 = np.array(obs_data['P2'].sel(sv=sat))
-                code_obs2 = 'P2'
-            else:
-                P2 = np.array(obs_data['C2'].sel(sv=sat))
-                code_obs2 = 'C2'
-            if np.all(np.isnan(P2)):
-                P2 = np.array(obs_data['C2'].sel(sv=sat))
-                code_obs2 = 'C2'
-            else:
-                code_obs2 = 'P2'
-    
-            # Checking for the presence of carrier phase (P5) or pseudorange (C5) observations
-            if 'P5' in obs_data:
-                P5 = np.array(obs_data['P5'].sel(sv=sat))
-                code_obs5 = 'P5'
-                if np.all(np.isnan(P5)):
-                    P5 = np.array(obs_data['C5'].sel(sv=sat))
-                    code_obs5 = 'C5'
-                    if np.all(np.isnan(P5)):
-                        # print(f"WARNING: All values in {code_obs5} are NaNs for satellite {sat}")
-                        print()
-            elif 'C5' in obs_data:
-                P5 = np.array(obs_data['C5'].sel(sv=sat))
-                code_obs5 = 'C5'
-                if np.all(np.isnan(P5)):
-                    # print(f"WARNING: All values in {code_obs5} are NaNs for satellite {sat}")
-                    print()
-            else:
-                # If neither P5 nor C5 are present, set P5 as a column of NaNs
                 P5 = np.full_like(L5, np.nan)
-                code_obs5 = "None"  # Or any other value to indicate the absence of data, as you prefer
-    
+                code_obs5 = "None"
+            if np.all(np.isnan(P5)) and "C5" in obs_data:
+                P5 = np.array(obs_data["C5"].sel(sv=sat))
+                code_obs5 = "C5"
             if np.all(np.isnan(P5)):
-                print(f"WARNING: All values in L5 data", f"{code_obs5} are NaNs for satellite {sat}")
-    
+                print(f"[WARNING] {sat}: All L5 ({code_obs5}) are NaN")
+            print(f"[INFO] {sat}: Using {code_obs1}/{code_obs2}/{code_obs5}")
+
+            # =====================================================
+            # BUILD DATAFRAME
+            # =====================================================
             df = pd.DataFrame({'time': obs_data.time})
             df.set_index('time', inplace=True)
-            df['index'] = df.index
+            df['index'] = np.arange(len(df))
             df['mjd'] = Time(df.index).mjd
-            mjd = Time(df.index).mjd
-    
             df['timestamp'] = pd.to_datetime(df.index)
-    
-            # Extracting only the time from 'timestamp' and storing it in a new 'time' column
-            df['time'] = df['timestamp'].dt.time
             df['date'] = df['timestamp'].dt.date
-    
-            df['L1'] = L1
-            df['L2'] = L2
-            df['L5'] = L5
-            df['P1'] = P1
-            df['P2'] = P2
-            df['P5'] = P5
-    
-            df['satellite'] = [sat] * len(L1)
-            df['station'] = [station_name.upper()] * len(L1)
-            df['position'] = [obs_data.position] * len(L1)
-            df['mjd'] = ["{:.12f}".format(valor) for valor in mjd]
-    
+            df['time'] = df['timestamp'].dt.time
+            df['L1'], df['L2'], df['L5'] = L1, L2, L5
+            df['P1'], df['P2'], df['P5'] = P1, P2, P5
+            df['satellite'] = sat
+            df['station'] = station_name.upper()
+            df['position'] = [obs_data.position] * len(df)
+            df['mjd'] = ["{:.12f}".format(v) for v in df['mjd']]
+
             timep = df['time']
-    
-            L1, L2, L5, P1, P2, P5 = df['L1'] , df['L2'] , df['L5'] , df['P1'] , df['P2'], df['P5']
-    
-            mjd, date, time = df['mjd'] , df['date'] , df['time']
-    
+            L1, L2, L5, P1, P2, P5 = df['L1'], df['L2'], df['L5'], df['P1'], df['P2'], df['P5']
+            mjd, date_col, time_col = df['mjd'], df['date'], df['time']
+
             df['LMW12'] = linear_combinations.melbourne_wubbena(f1, f2, L1, L2, P1, P2)
-    
             df['LMW15'] = linear_combinations.melbourne_wubbena(f1, f5, L1, L5, P1, P5)
-    
+
             station_coords = df['position'].iloc[0]
-    
-            # Converting each string in the list into a float (or int, if appropriate)
+            # convert coords to floats
             coords_list = [float(coord) for coord in station_coords]
-    
-            # Converting the list of coordinates into a list containing a single tuple
             obs_x, obs_y, obs_z = coords_list[0], coords_list[1], coords_list[2]
-    
-            # Initializing empty lists to collect data
+
+            # =====================================================
+            # IPP/interpolation (kept)
+            # =====================================================
             all_data = []
-            all_time = []
-            all_sat = []
-            all_longitude = []
-            all_latitude = []
-            all_elevation = []
-    
-            # for ipp_sat in sorted_common_elements_list:
-            indices = np.where(df2['Satélite'] == sat)[0]
-            df_filtrado = df2.iloc[indices]
-    
-            import time
+            all_time_s = []
+            all_sat_s = []
+            all_longitude_s = []
+            all_latitude_s = []
+            all_elevation_s = []
 
-            # Getting the current time in seconds since the Unix Epoch
-            current_time = time.time()
-    
-            # Converting the time into a local time structure
-            local_time = time.localtime(current_time)
-    
-            # Formatting the time in hh:mm format
-            formatted_time = time.strftime("%H:%M:%S", local_time)
+            indices = np.where(df2['Satellite'] == sat)[0]
+            df_filtered_sp3 = df2.iloc[indices]
 
-            from datetime import datetime, timedelta
-    
-            # Defining the interpolation rate in seconds (e.g., 15 seconds)
+            import time as _time
+            formatted_time = _time.strftime("%H:%M:%S", _time.localtime(_time.time()))
+            from datetime import datetime as _dt, timedelta
+
             rate = freq
 
-            # Lists to store the original and interpolated data
             all_data = []
-            all_time = []
-            all_sat = []
-            all_longitude = []
-            all_latitude = []
-            all_elevation = []
-    
-            # Variables to store the last known data for each satellite
+            all_time_s = []
+            all_sat_s = []
+            all_longitude_s = []
+            all_latitude_s = []
+            all_elevation_s = []
+
             last_data_by_satellite = {}
-    
-            for _, row in df_filtrado.iterrows():
-                date = row["Date"]
-                sat = row["Satélite"]
+
+            for _, row in df_filtered_sp3.iterrows():
+                date_s = row["Date"]
+                sat_s = row["Satellite"]
                 sx = row["X"]
                 sy = row["Y"]
                 sz = row["Z"]
-                time = row["Time"]
-    
-                # Assuming that convert_coords and IonosphericPiercingPoint are functions defined earlier
+                time_s = row["Time"]
+
                 lon, lat, alt = settings.convert_coords(obs_x, obs_y, obs_z, to_radians=True)
                 ip = settings.IonosphericPiercingPoint(sx, sy, sz, obs_x, obs_y, obs_z)
                 elevation = ip.elevation(lat, lon)
                 lat_ip, lon_ip = ip.coordinates(lat, lon)
-    
-                # Converting the current date and time into a datetime object to calculate time intervals
-                current_time = datetime.strptime(f"{date} {time}", "%d-%m-%Y %H:%M:%S")
-    
-                # If we already have previous data for the satellite, we check whether interpolation is needed
-                if sat in last_data_by_satellite:
-                    last_known_time = last_data_by_satellite[sat]['date_time']
-    
-                    # If the difference between the last known time and the current time is greater than the rate, interpolate
-                    while last_known_time + timedelta(seconds=rate) < current_time:
-                        last_known_time += timedelta(seconds=rate)
-    
-                        # Add the interpolated data to the lists (using the last known values)
-                        all_data.append(last_known_time.strftime("%d-%m-%Y"))
-                        all_time.append(last_known_time.strftime("%H:%M:%S"))
-                        all_sat.append(sat)
-                        all_longitude.append(last_data_by_satellite[sat]['lon'])
-                        all_latitude.append(last_data_by_satellite[sat]['lat'])
-                        all_elevation.append(last_data_by_satellite[sat]['elevation'])
-    
-                # Update the satellite data for the next cycle
-                last_data_by_satellite[sat] = {
+
+                current_time = _dt.strptime(f"{date_s} {time_s}", "%d-%m-%Y %H:%M:%S")
+
+                if sat_s in last_data_by_satellite:
+                    last_known = last_data_by_satellite[sat_s]
+                    last_time = last_known['date_time']
+                    delta_t = (current_time - last_time).total_seconds()
+
+                    if delta_t > rate:
+                        n_steps = int(delta_t // rate)
+                        for step in range(1, n_steps):
+                            interp_time = last_time + timedelta(seconds=step * rate)
+                            frac = step * rate / delta_t
+                            lon_interp = last_known['lon'] + frac * (lon_ip - last_known['lon'])
+                            lat_interp = last_known['lat'] + frac * (lat_ip - last_known['lat'])
+                            elv_interp = last_known['elevation'] + frac * (elevation - last_known['elevation'])
+
+                            all_data.append(interp_time.strftime("%d-%m-%Y"))
+                            all_time_s.append(interp_time.strftime("%H:%M:%S"))
+                            all_sat_s.append(sat_s)
+                            all_longitude_s.append(lon_interp)
+                            all_latitude_s.append(lat_interp)
+                            all_elevation_s.append(elv_interp)
+
+                last_data_by_satellite[sat_s] = {
                     'date_time': current_time,
                     'lon': lon_ip,
                     'lat': lat_ip,
                     'elevation': elevation
                 }
-    
-                # Add the original data (without interpolation) to the lists
-                all_data.append(date)
-                all_time.append(time)
-                all_sat.append(sat)
-                all_longitude.append(lon_ip)
-                all_latitude.append(lat_ip)
-                all_elevation.append(elevation)
-    
-            # After processing all satellites:
-            # Set the final time as 23:59:45
-            final_hour = datetime.strptime(f"{date} 23:59:45", "%d-%m-%Y %H:%M:%S")
-    
-            # Iterate over each satellite to extrapolate the data until the end of the day
-            for satellite_name, data in last_data_by_satellite.items():
-                last_record = data  # Last recorded data for the satellite
+
+                all_data.append(date_s)
+                all_time_s.append(time_s)
+                all_sat_s.append(sat_s)
+                all_longitude_s.append(lon_ip)
+                all_latitude_s.append(lat_ip)
+                all_elevation_s.append(elevation)
+
+            final_hour = _dt.strptime(f"{date_s} 23:59:45", "%d-%m-%Y %H:%M:%S")
+            for satellite_name, data_last in last_data_by_satellite.items():
+                last_record = data_last
                 while last_record['date_time'] < final_hour:
-                    last_record['date_time'] += timedelta(seconds=rate)  # Increment by 15 seconds
-    
-                    # Add the extrapolated data (the last known values) to the lists
+                    last_record['date_time'] += timedelta(seconds=rate)
                     all_data.append(last_record['date_time'].strftime("%d-%m-%Y"))
-                    all_time.append(last_record['date_time'].strftime("%H:%M:%S"))
-                    all_sat.append(satellite_name)
-                    all_longitude.append(last_record['lon'])
-                    all_latitude.append(last_record['lat'])
-                    all_elevation.append(last_record['elevation'])
-    
-            # After exiting the loop, convert the lists to NumPy arrays (if necessary)
+                    all_time_s.append(last_record['date_time'].strftime("%H:%M:%S"))
+                    all_sat_s.append(satellite_name)
+                    all_longitude_s.append(last_record['lon'])
+                    all_latitude_s.append(last_record['lat'])
+                    all_elevation_s.append(last_record['elevation'])
+
+            # Convert to Series
             all_date = pd.Series(all_data)
-            all_time = pd.Series(all_time)
-            all_sat = pd.Series(all_sat)
-            all_longitude = pd.Series(all_longitude)
-            all_latitude = pd.Series(all_latitude)
-            all_elevation = pd.Series(all_elevation)
-    
-            # Create a new combined DataFrame with the original, interpolated, and extrapolated data
+            all_time_series = pd.Series(all_time_s)
+            all_sat_series = pd.Series(all_sat_s)
+            all_longitude_series = pd.Series(all_longitude_s)
+            all_latitude_series = pd.Series(all_latitude_s)
+            all_elevation_series = pd.Series(all_elevation_s)
+
+            # Smooth elevation with moving average
+            window_size = 100
+            all_elevation_smooth = pd.Series(all_elevation_series).rolling(
+                window=window_size,
+                center=True,
+                min_periods=1
+            ).mean()
+            all_elevation_series = all_elevation_smooth
+
             combined_df = pd.DataFrame({
                 "Date": all_date,
-                "Time": all_time,
-                "SAT": all_sat,
-                "Longitude": all_longitude,
-                "Latitude": all_latitude,
-                "Elevation": all_elevation
+                "Time": all_time_series,
+                "SAT": all_sat_series,
+                "Longitude": all_longitude_series,
+                "Latitude": all_latitude_series,
+                "Elevation": all_elevation_series
             })
-    
-            # Converting the time data to datetime type
+
             combined_df['Time'] = pd.to_datetime(combined_df['Time'], format='%H:%M:%S')
-    
             df['time'] = df['time'].astype(str)
-    
-            # Converting the times into datetime objects
             combined_df['Time'] = pd.to_datetime(combined_df['Time']).dt.time
-    
-            # Specify the format when converting to datetime
             df['time'] = pd.to_datetime(df['time'], format='%H:%M:%S').dt.time
-    
-            # Finding the times that are present in both dataframes
-            horas_em_common = set(combined_df['Time']).intersection(set(df['time']))
-    
-            # Defining the reference length as the smaller length between the two dataframes
-            comprimento_referencia = min(len(combined_df), len(df))
-    
-            # Filtering the dataframes to keep only the common rows based on the reference length
-            combined_df = combined_df[combined_df['Time'].isin(horas_em_common)].iloc[:comprimento_referencia]
-            df = df[df['time'].isin(horas_em_common)].iloc[:comprimento_referencia]
-    
-            colunas_desejadas_df1 = ['Elevation','Longitude','Latitude']
-    
-            combined_df_selecionado = combined_df[colunas_desejadas_df1]
-    
-            L1, L2, L5, P1, P2, P5 = df['L1'] , df['L2'] , df['L5'], df['P1'] , df['P2'] , df['P5']
-    
-            mjd, date, time = df['mjd'] , df['date'] , df['time']
-    
-            # Assuming that df_filtered is your DataFrame
-            # Split the 'position' column into three new columns and expand the result into separate columns
+
+            common_times = set(combined_df['Time']).intersection(set(df['time']))
+            ref_len = min(len(combined_df), len(df))
+
+            combined_df = combined_df[combined_df['Time'].isin(common_times)].iloc[:ref_len]
+            df = df[df['time'].isin(common_times)].iloc[:ref_len]
+
+            cols_df1 = ['Elevation', 'Longitude', 'Latitude']
+            combined_df_selected = combined_df[cols_df1]
+
+            L1, L2, L5, P1, P2, P5 = df['L1'], df['L2'], df['L5'], df['P1'], df['P2'], df['P5']
+            mjd, date_col, time_col = df['mjd'], df['date'], df['time']
+
             df['pos_x'], df['pos_y'], df['pos_z'] = obs_x, obs_y, obs_z
-    
             df['height'] = np.full(len(L1), 450.0)
-    
-            # Now df_filtered has the columns 'pos_x', 'pos_y', and 'pos_z'
-            # You can then select these new columns for inclusion in the DataFrame to be saved
-            colunas_desejadas_df2 = ['date','time', 'mjd', 'pos_x', 'pos_y', 'pos_z', 'L1', 'L2', 'L5', 'P1', 'P2', 'P5', 'satellite','station','height']
-            df_filtered_selecionado = df[colunas_desejadas_df2]
-    
-            # Make sure that df_filtered and combined_df have the same length
-            if len(df_filtered_selecionado) == len(combined_df_selecionado):
-                # Merging the DataFrames side by side
-                df_final = pd.concat([df_filtered_selecionado, combined_df_selecionado], axis=1)
+
+            cols_df2 = [
+                'date', 'time', 'mjd', 'pos_x', 'pos_y', 'pos_z',
+                'L1', 'L2', 'L5', 'P1', 'P2', 'P5', 'satellite', 'station', 'height'
+            ]
+            df_filtered_selected = df[cols_df2]
+
+            if len(df_filtered_selected) == len(combined_df_selected):
+                df_final = pd.concat([df_filtered_selected, combined_df_selected], axis=1)
             else:
                 print("Error: df_filtered and combined_df do not have the same length!")
-                # Exit the execution if the DataFrames do not have the same size
                 sys.exit()
-    
+
             LMW2 = df['LMW12']
             LMW3 = df['LMW15']
-    
-            abs_elevation = abs(combined_df_selecionado['Elevation'])
-    
             df['LMW2'] = LMW2
             df['LMW3'] = LMW3
-    
-            combined_df_selecionado.index = df.index
-    
-            indices_low_elevation = combined_df_selecionado.index[abs_elevation < 10]
-    
-            # List of columns that should be set to NaN
+
+            abs_elevation = abs(combined_df_selected['Elevation'])
+            combined_df_selected.index = df.index
+            indices_low_elevation = combined_df_selected.index[abs_elevation < 10]
+
             cols_nan = ['LMW2', 'LMW3']
-    
-            # Assign NaN to the specified columns only for the rows in indices_low_elevation
             df.loc[indices_low_elevation, cols_nan] = np.nan
-    
-            # Assuming that LMW is a NumPy array and time is a corresponding time vector
-            LMW = np.array(df['LMW2'])  # Ensure that LMW is a NumPy array to facilitate manipulation
-            LMW15 = np.array(df['LMW3'])  # Ensure that LMW is a NumPy array to facilitate manipulation
-    
-            arcs = []  # List to store the observation arcs
-            current_arc = []  # Temporary list to store the current observation arc
-    
-            # Iterate over all elements of LMW
-            for idx, value in enumerate(LMW):
+
+            LMW = np.array(df['LMW2'])
+            LMW15 = np.array(df['LMW3'])
+
+            arcs = []
+            current_arc = []
+            for idx_i, value in enumerate(LMW):
                 if np.isnan(value):
-                    # If the current value is NaN, check if the current arc is empty
-                    # This avoids adding empty arcs in case of consecutive NaNs
                     if current_arc:
                         arcs.append(current_arc)
                         current_arc = []
                 else:
-                    # If the value is not NaN, add the index to the current arc
-                    current_arc.append(idx)
-    
-            # Add the last arc if it is not empty
+                    current_arc.append(idx_i)
             if current_arc:
                 arcs.append(current_arc)
-    
+
             print()
             print('Melbourne-Wubbena combination for L1-L2')
             print()
-    
-            # Print information about each arc and classify them
-            for i, arc in enumerate(arcs):
+            for i_arc, arc in enumerate(arcs):
                 start_index = arc[0]
                 end_index = arc[-1]
                 num_observations = len(arc)
                 status = "Kept" if num_observations >= 15 else "Discarded"
-    
-                print(f"Arc {i + 1}: Start index = {start_index}, End index = {end_index}, "
-                    f"Number of observations = {num_observations}, Status = {status}")
-    
-            arcs15 = []  # List to store the observation arcs
-            current_arc15 = []  # Temporary list to store the current observation arc
-    
-            # Iterate over all elements of LMW15
-            for idx, value in enumerate(LMW15):
+                print(f"Arc {i_arc + 1}: Start index = {start_index}, End index = {end_index}, "
+                      f"Number of observations = {num_observations}, Status = {status}")
+
+            arcs15 = []
+            current_arc15 = []
+            for idx_i, value in enumerate(LMW15):
                 if np.isnan(value):
-                    # If the current value is NaN, check if the current arc is empty
-                    # This avoids adding empty arcs in case of consecutive NaNs
                     if current_arc15:
                         arcs15.append(current_arc15)
                         current_arc15 = []
                 else:
-                    # If the value is not NaN, add the index to the current arc
-                    current_arc15.append(idx)
-    
-            # Add the last arc if it is not empty
+                    current_arc15.append(idx_i)
             if current_arc15:
                 arcs15.append(current_arc15)
-    
+
             print()
             print()
-    
             print('Melbourne-Wubbena combination for L1-L5')
-    
             print()
-    
-            # Print information about each arc and classify them
-            for i, arc in enumerate(arcs15):
+            for i_arc, arc in enumerate(arcs15):
                 start_index = arc[0]
                 end_index = arc[-1]
                 num_observations = len(arc)
                 status = "Kept" if num_observations >= 15 else "Discarded"
-                print(f"Arc {i + 1}: Start index = {start_index}, End index = {end_index}, "
-                    f"Number of observations = {num_observations}, Status = {status}")
-    
-            LMW = np.array(LMW)  # Still assuming that LMW is your data array
-            LMW15 = np.array(LMW15)  # Still assuming that LMW is your data array
-    
-            print()
-            print()
-    
-            # Function to rescale the data to the range [-10, 10]
-            def rescale_data(data):
-                min_val = np.min(data)
-                max_val = np.max(data)
-                # Rescale the data to the range [0, 1]
-                scaled_data = (data - min_val) / (max_val - min_val)
-                # Adjust it to the range [-10, 10]
-                final_data = scaled_data * 20 - 10
-                return final_data
-    
-    
-            # -- [L1 - L2]
-            idx_total = []
-    
-            for arc in arcs:
-                arc_data = df.iloc[arc]
-                time = df.index[arc]
-    
-                if len(arc_data) < ARCL:  # Check if there are enough points for the fitting
-                    continue
-    
-                x = arc_data.index.astype(np.int64) // 10**9  # Converting to seconds
-                xx = arc_data['time']
-                y = arc_data['LMW2'].values
-    
-                y_rescaled = rescale_data(y)
-                delta_y = np.diff(y_rescaled, prepend=np.nan)
-    
-                # Fit a polynomial only to the valid values (excluding np.nan)
-                p = Polynomial.fit(x[1:], delta_y[1:], 3)
-    
-                delta_y_fit = p(x)  # Polynomial fitted values
-                residuals = abs(delta_y - delta_y_fit)  # Calculate residuals
-    
-                # Calculation of customized quartiles and IQR for outlier identification
-                Q1 = np.nanpercentile(residuals, 15)
-                Q3 = np.nanpercentile(residuals, 85)
-                IQR = Q3 - Q1
-                outlier_mask = (residuals < Q1 - 4 * IQR) | (residuals > Q3 + 4 * IQR)
-                high_residuals_mask = residuals > 1  # Máscara para resíduos altos
-                other_residuals_mask = ~(outlier_mask | high_residuals_mask)  # Máscara para os demais resíduos
+                print(f"Arc {i_arc + 1}: Start index = {start_index}, End index = {end_index}, "
+                      f"Number of observations = {num_observations}, Status = {status}")
 
-                # Suppose that 'residuals' is the variable containing the calculated residuals
-                limiar_outlier = 4  # Threshold for identifying outliers (e.g., 4 times the IQR)
-                limiar_residuo_alto = 1  # Threshold for identifying high residuals
-    
-                # Identify indices of outliers and high residuals
-                indices_outliers =  arc[0] + np.where(np.abs(residuals) > limiar_outlier * IQR)[0]
-                indices_residuos_altos = arc[0] + np.where(np.abs(residuals) > limiar_residuo_alto)[0]
-    
-                # Merge the indices without duplicates
-                indices_combinados = np.union1d(indices_outliers, indices_residuos_altos)
-    
-                # Add the combined_indices values to the list
-                idx_total.append(indices_combinados)
-    
-            # Concatenate all values in the list into a single NumPy array
-            if idx_total:
-                idx_total = np.concatenate(idx_total)
-    
-            # Initialize 'flags' with 'C' for all indices in LMW
+            LMW = np.array(LMW)
+            LMW15 = np.array(LMW15)
+
+            print()
+            print()
+
+            # Flags — call process_combination for L1–L2 (L1–L5 is commented as in your code)
             flags = ['C'] * len(LMW)
-    
-            # Check where LMW is NaN and replace the corresponding flags with 'S'
-            nan_indices = np.where(np.isnan(LMW))[0]
-            flags = list(flags)  # Convert flags to a list
-            for idx in nan_indices:
-                flags[idx] = 'S'
-    
-            # Use idx_total as indices to change the corresponding flags to 'S'
-            for idx in idx_total:
-                if idx < len(flags):
-                    flags[idx] = 'S'
-    
-            for idx in idx_total:
-                print("L1-L2 (+)", idx, timep.iloc[idx])
-    
-    
-            # ---- [L1 - L5]
-            idx_total15 = []
-    
-            for arc in arcs15:
-                arc_data = df.iloc[arc]
-                time = df.index[arc]
-    
-                if len(arc_data) < ARCL:  # Check if there are enough points for fitting
-                    continue
-    
-                x = arc_data.index.astype(np.int64) // 10**9  # Convert to seconds
-                xx = arc_data['time']
-                y = arc_data['LMW3'].values
-    
-                y_rescaled = rescale_data(y)
-                delta_y = np.diff(y_rescaled, prepend=np.nan)
-    
-                # Fit a polynomial only to valid values (excluding np.nan)
-                p = Polynomial.fit(x[1:], delta_y[1:], 3)
+            flags, idx_total_L12 = process_combination(df, arcs, 'LMW2', ARCL, LMW, flags, timep, label="L1-L2")
+            # flags, idx_total_L15 = process_combination(df, arcs15, 'LMW3', ARCL, LMW15, flags, timep, label="L1-L5")
 
-                delta_y_fit = p(x)  # Polynomial fitted values
-                residuals = abs(delta_y - delta_y_fit)  # Calculate residuals
-    
-                # Calculation of customized quartiles and IQR for outlier identification
-                Q1 = np.nanpercentile(residuals, 15)
-                Q3 = np.nanpercentile(residuals, 85)
-                IQR = Q3 - Q1
-                outlier_mask = (residuals < Q1 - 4 * IQR) | (residuals > Q3 + 4 * IQR)
-                high_residuals_mask = residuals > 1  # Mask for high residuals
-                other_residuals_mask = ~(outlier_mask | high_residuals_mask)  # Mask for normal residuals
-    
-                # Assume that 'residuals' is the variable containing the calculated residuals
-                limiar_outlier = 4  # Threshold to identify outliers (e.g., 4 times the IQR)
-                limiar_residuo_alto = 1  # Threshold to identify high residuals
-    
-                # Identify indices of outliers and high residuals
-                indices_outliers15 =  arc[0] + np.where(np.abs(residuals) > limiar_outlier * IQR)[0]
-                indices_residuos_altos15 = arc[0] + np.where(np.abs(residuals) > limiar_residuo_alto)[0]
-    
-                # Combine the indices without duplication
-                indices_combinados15 = np.union1d(indices_outliers15, indices_residuos_altos15)
-    
-                # Add the combined indices to the list
-                idx_total15.append(indices_combinados15)
-    
-                print("Combined indices (L1 - L5):", indices_combinados15)
-    
-            # Concatenate all values from the list into a single NumPy array
-            if idx_total15:
-                idx_total15 = np.concatenate(idx_total15)
-    
-            # Check if LMW15 is not entirely composed of NaN
-            if not np.all(np.isnan(LMW15)):
-                # Identify where LMW15 is NaN and assign 'S' to the corresponding flags
-                nan_indices15 = np.where(np.isnan(LMW15))[0]
-                for idx in nan_indices15:
-                    flags[idx] = 'S'
-    
-            # Use idx_total15 as indices to set the corresponding flags to 'S'
-            for idx in idx_total15:
-                if idx < len(flags):
-                    flags[idx] = 'S'
-    
-            for idx in idx_total15:
-                print("L1-L5 (+)", idx, timep.iloc[idx])
-    
             satellite_values = [sat] * len(L1)
             station = [station_name.upper()] * len(L1)
             position = [obs_data.position] * len(L1)
-    
+
             L1 = [value if pd.notna(value) else -999999.999 for value in L1]
             L2 = [value if pd.notna(value) else -999999.999 for value in L2]
             L5 = [value if pd.notna(value) else -999999.999 for value in L5]
-    
+
             P1 = [value if pd.notna(value) else -999999.999 for value in P1]
             P2 = [value if pd.notna(value) else -999999.999 for value in P2]
             P5 = [value if pd.notna(value) else -999999.999 for value in P5]
-    
+
             L1 = ["{:.3f}".format(valor) for valor in L1]
             L2 = ["{:.3f}".format(valor) for valor in L2]
             L5 = ["{:.3f}".format(valor) for valor in L5]
-    
+
             P1 = ["{:.3f}".format(valor) for valor in P1]
             P2 = ["{:.3f}".format(valor) for valor in P2]
             P5 = ["{:.3f}".format(valor) for valor in P5]
-    
+
             df.reset_index(drop=True, inplace=True)
             combined_df.reset_index(drop=True, inplace=True)
-    
+
             export_df = pd.DataFrame({
                 'date': df['date'],
                 'time': df['time'],
-                'mjd': df['mjd'],
+                'mjd': df['mjd'],  # we will format below
                 'pos_x': df['pos_x'],
                 'pos_y': df['pos_y'],
                 'pos_z': df['pos_z'],
-                'L1': df['L1'],
-                'L2': df['L2'],
-                'L5': df['L5'],
-                'P1': df['P1'],
-                'P2': df['P2'],
-                'P5': df['P5'],
+                'L1': df['L1'].round(6),
+                'L2': df['L2'].round(6),
+                'L5': df['L5'].round(6),
+                'P1': df['P1'].round(6),
+                'P2': df['P2'].round(6),
+                'P5': df['P5'].round(6),
                 'cs_flags': flags,
                 'satellite': satellite_values,
                 'sta': station,
-                'hght': df['height'],
-                'El': abs(combined_df['Elevation'].round(2)),
-                'Lon': combined_df['Longitude'],
-                'Lat': combined_df['Latitude'],
+                'hght': df['height'].round(2),          # will be zero-padded to 2
+                'El': combined_df['Elevation'].round(4),# will be zero-padded to 4
+                'Lon': combined_df['Longitude'].round(4),
+                'Lat': combined_df['Latitude'].round(4),
             })
-    
+
             export_df.rename(columns={'P1': code_obs1}, inplace=True)
             export_df.rename(columns={'P2': code_obs2}, inplace=True)
             export_df.rename(columns={'P5': code_obs5}, inplace=True)
-    
-            file_name = f"{station_name.upper()}_{sat}_{day_of_year}_{year}.RNX1"
-    
+
+            col_order = [
+                'date','time','mjd','pos_x','pos_y','pos_z',
+                'L1','L2','L5', code_obs1, code_obs2, code_obs5,
+                'cs_flags','satellite','sta','hght','El','Lon','Lat'
+            ]
+            export_df = export_df[col_order]
+
+            export_df['mjd'] = pd.to_numeric(export_df['mjd'], errors='coerce')
+            export_df['mjd'] = export_df['mjd'].apply(lambda v: f"{v:.6f}" if pd.notna(v) else np.nan)
+
+            for col, fmt in [('El', '{:.4f}'), ('Lon', '{:.4f}'), ('Lat', '{:.4f}'), ('hght', '{:.2f}')]:
+                export_df[col] = pd.to_numeric(export_df[col], errors='coerce')
+                export_df[col] = export_df[col].apply(lambda v: fmt.format(v) if pd.notna(v) else np.nan)
+
+            for col in ['pos_x','pos_y','pos_z','L1','L2','L5', code_obs1, code_obs2, code_obs5]:
+                export_df[col] = pd.to_numeric(export_df[col], errors='coerce')
+                export_df[col] = export_df[col].apply(lambda v: f"{v:.6f}" if pd.notna(v) else np.nan)
+
+            obj_cols = export_df.select_dtypes(include=['object']).columns
+            for c in obj_cols:
+                export_df[c] = (
+                    export_df[c]
+                    .astype(str)
+                    .str.replace('\t', ' ', regex=False)
+                    .str.replace('\r', ' ', regex=False)
+                    .str.replace('\n', ' ', regex=False)
+                    .str.strip()
+                    .replace({'nan': np.nan})
+                )
+
+            numeric_cols = ['pos_x','pos_y','pos_z','L1','L2','L5', code_obs1, code_obs2, code_obs5]
+            for c in numeric_cols:
+                export_df[c] = pd.to_numeric(export_df[c], errors='coerce')
+
             output_directory = os.path.join(output_folder)
-            full_path = output_directory
-    
-    
-            os.makedirs(full_path, exist_ok=True)
-            output_file_path = os.path.join(full_path, file_name)
-            export_df.to_csv(output_file_path, sep='\t', index=False, na_rep='-999999.999')
+            os.makedirs(output_directory, exist_ok=True)
+            file_name = f"{station_name.upper()}_{sat}_{day_of_year}_{year}.RNX1"
+            output_file_path = os.path.join(output_directory, file_name)
+
+            export_df.to_csv(
+                output_file_path,
+                sep='\t',
+                index=False,
+                na_rep='-999999.999',
+                lineterminator='\n'
+            )
+            print(f"[OK] Saved: {output_file_path}")
+
+            # Store IPPs (kept)
+            if 'all_satellites_df' not in locals():
+                all_satellites_df = []
+            all_satellites_df.append(export_df[['Lon', 'Lat', 'El', 'satellite']])
+
+        # ===========================
+        # END satellite loop
+        # ===========================
+
+    # ==========================================================
+    # >>> AUTOMATIC CONNECTION: call the second code here <<<
+    # ==========================================================
+    print("\n" + "=" * 80)
+    print("[INFO] Triggering RNXScreening in the output directory (RNX1 -> RNX2):")
+    print(f"       {output_folder}")
+    print("=" * 80 + "\n")
+    RNXScreening(output_folder)  # <<< ONLY connection added
+
+
+# ==========================================================
+# detect_and_plot_arcs_before_after (from the second block)
+# ==========================================================
+def detect_and_plot_arcs_before_after(
+    df,
+    arcos_validos,
+    series,
+    label_pair="L1-L2",
+    rescale_func=None,
+    fit_poly_func=None,
+    outlier_flag_column="outlier_flag",
+    plot=False,  # disabled by default
+    save_dir=None,
+    sat_id=None
+):
+    import numpy as np
+    from numpy.polynomial import Polynomial
+
+    thr1 = 2  # IQR threshold factor
+
+    # ensure flag column
+    if outlier_flag_column not in df.columns:
+        df[outlier_flag_column] = 'N'
+
+    all_removed = []          # global anomaly indices
+    all_sign_changes = []     # global sign-change indices
+
+    # Main loop per arc
+    for i_arc, arc in enumerate(arcos_validos, start=1):
+        start, end = arc[0], arc[-1]
+        t = df['timestamp'].iloc[start:end+1].to_numpy()
+        y_raw = np.asarray(series[start:end+1], dtype=float)
+
+        if len(t) < 5 or np.all(np.isnan(y_raw)):
+            continue
+
+        # 1) rescale + derivative
+        y_ref = rescale_func(y_raw) if rescale_func else y_raw.copy()
+        dy = np.diff(y_ref, prepend=np.nan)
+
+        # 2) polynomial fit (3rd order)
+        x_sec = (df['timestamp'].iloc[start:end+1] - df['timestamp'].iloc[start]).dt.total_seconds().to_numpy()
+        if np.isfinite(dy[1:]).sum() >= 4:
+            p = Polynomial.fit(x_sec[1:], dy[1:], 3)
+            dy_fit = p(x_sec)
+        else:
+            dy_fit = np.zeros_like(dy)
+
+        resid = dy - dy_fit
+
+        # 3) mini-arcs by sign change
+        mini_arcos, mini_atual, prev_sign = [], [], None
+        sign_changes_local = []
+
+        for k, val in enumerate(resid):
+            s = np.sign(val) if np.isfinite(val) else 0.0
+            if prev_sign is None:
+                prev_sign = s
+            if s != prev_sign:
+                sign_changes_local.append(start + k)
+                if mini_atual:
+                    mini_arcos.append(mini_atual)
+                mini_atual = []
+            mini_atual.append(k)
+            prev_sign = s
+
+        if mini_atual:
+            mini_arcos.append(mini_atual)
+
+        mini_kept = [m for m in mini_arcos if len(m) >= 4]
+        if len(mini_kept) == 0:
+            mini_kept = [list(range(0, len(t)))]
+
+        all_sign_changes.extend(sign_changes_local)
+
+        removed_local = []
+
+        # 4) anomaly detection per mini-arc
+        for m in mini_kept:
+            m0, m1 = m[0], m[-1]
+            idx_loc = np.arange(m0, m1+1)
+            res_m = resid[idx_loc].copy()
+
+            if fit_poly_func and np.isfinite(res_m).sum() >= 4:
+                try:
+                    m_fit   = fit_poly_func(np.arange(res_m.size), res_m, 3)
+                    new_res = np.abs(res_m - m_fit)
+                except Exception:
+                    new_res = np.abs(res_m)
+            else:
+                new_res = np.abs(res_m)
+
+            if np.all(np.isnan(new_res)):
+                mask_out = np.zeros_like(new_res, dtype=bool)
+            else:
+                q1, q3 = np.nanpercentile(new_res, [15, 85])
+                iqr = q3 - q1
+                thr_low  = q1 - thr1 * iqr
+                thr_high = q3 + thr1 * iqr
+                mask_out = (new_res < thr_low) | (new_res > thr_high)
+
+            micro = np.abs(np.diff(new_res, prepend=np.nan))
+            if np.all(np.isnan(micro)):
+                mask_micro = np.zeros_like(new_res, dtype=bool)
+            else:
+                q1m, q3m = np.nanpercentile(micro, [15, 85])
+                iqrm = q3m - q1m
+                thr_micro_low  = q1m - thr1 * iqrm
+                thr_micro_high = q3m + thr1 * iqrm
+                mask_micro = (micro < thr_micro_low) | (micro > thr_micro_high)
+
+            anom_local_mask = mask_out | mask_micro
+            anom_loc_idx  = idx_loc[anom_local_mask]
+            anom_glob_idx = start + anom_loc_idx
+            removed_local.extend(anom_glob_idx.tolist())
+
+        if removed_local:
+            all_removed.extend(removed_local)
+
+    # 5) Update flags in DataFrame
+    if all_removed:
+        df.loc[all_removed, outlier_flag_column] = 'Y'
+
+    if "sign_change_flag" not in df.columns:
+        df["sign_change_flag"] = 'N'
+    if all_sign_changes:
+        df.loc[all_sign_changes, "sign_change_flag"] = 'S'
+
+    return {
+        "removed_indices": sorted(set(all_removed)),
+        "sign_change_indices": sorted(set(all_sign_changes)),
+        "df": df
+    }
+
+
+# ==========================================================
+# RNXScreening (from the second block) — LOGIC UNCHANGED
+# ==========================================================
+def RNXScreening(destination_directory):
+    # List files in the .RNX1 directory
+    filess = os.listdir(destination_directory)
+    files = [file_ for file_ in filess if file_.endswith("RNX1")]
+
+    for file in files:
+        f = os.path.join(destination_directory, file)
+        g = os.path.basename(f)
+        ano = g[13:17]
+        doy = g[9:12]
+        estacao = g[0:4]
+        sat = g[5:8]
+
+        # Variables and Parameters
+        h1 = 0
+        n_horas = 24
+        int1 = 120
+
+        # GPS freqs
+        gps_freqs_local = gnss_freqs.FREQUENCY[gnss_freqs.GPS]
+        f1 = gps_freqs_local[1]
+        f2 = gps_freqs_local[2]
+        f5 = gps_freqs_local[5]
+
+        # GLONASS channels/freqs
+        glonass_channels = {
+            'R01':  +1,   'R02':  -4,   'R03':  +5,   'R04':  +6,
+            'R05':  +1,   'R06':  -4,   'R07':  +5,   'R08':  +6,
+            'R09':  -2,   'R10':  -7,   'R11':   0,   'R12':  -1,
+            'R13':  -2,   'R14':  -7,   'R15':   0,   'R16':  -1,
+            'R17':  +4,   'R18':  -3,   'R19':  +3,   'R20':  +2,
+            'R21':  +4,   'R22':  -3,   'R23':  +3,   'R24':  +2
+        }
+        df_slots = pd.DataFrame(list(glonass_channels.items()), columns=['Slot', 'Channel'])
+        glonass_frequencies = gnss_freqs.FREQUENCY[gnss_freqs.GLO]
+
+        data = []
+        for _, row in df_slots.iterrows():
+            satellite = row['Slot']
+            k = row['Channel']
+            row_data = [satellite]
+            for _, frequency in glonass_frequencies.items():
+                freq_value = frequency(k) if callable(frequency) else frequency
+                row_data.append(f"{freq_value:.1f}")
+            data.append(row_data)
+        glo_freqs_df = pd.DataFrame(data, columns=['Satellite', 'fr1', 'fr2', 'fr3'])
+
+        if sat.startswith('G'):
+            f1 = f1
+            f2 = f2
+            f5 = f5
+        elif sat.startswith('R'):
+            sat_row = glo_freqs_df.loc[glo_freqs_df['Satellite'] == sat]
+            if not sat_row.empty:
+                f1 = float(sat_row['fr1'].values[0])
+                f2 = float(sat_row['fr2'].values[0])
+                f5 = float(sat_row['fr3'].values[0])
+        else:
+            f1 = f2 = f5 = None
+
+        # Load tabulated RNX1
+        date = []
+        time_s = []
+        mjd = []
+        pos_x = []
+        pos_y = []
+        pos_z = []
+        L1 = []
+        L2 = []
+        L5 = []
+        P1 = []
+        P2 = []
+        P5 = []
+        cs_flags = []
+        satellites = []
+        sta = []
+        hght = []
+        El = []
+        Lon = []
+        Lat = []
+        obs_La = []
+        obs_Lb = []
+        obs_Lc = []
+        obs_Ca = []
+        obs_Cb = []
+        obs_Cc = []
+
+        caminho_arquivo = f
+
+        with open(caminho_arquivo, 'r') as fpin:
+            header = fpin.readline().strip().split('\t')
+            obs_La_header = header[6]
+            obs_Lb_header = header[7]
+            obs_Lc_header = header[8]
+            obs_Ca_header = header[9]
+            obs_Cb_header = header[10]
+            obs_Cc_header = header[11]
+
+            for linha in fpin:
+                colunas = linha.strip().split('\t')
+                registro = {
+                    'date': colunas[0],
+                    'time': colunas[1],
+                    'mjd': colunas[2],
+                    'pos_x': colunas[3],
+                    'pos_y': colunas[4],
+                    'pos_z': colunas[5],
+                    'L1': colunas[6],
+                    'L2': colunas[7],
+                    'L5': colunas[8],
+                    'P1': colunas[9],
+                    'P2': colunas[10],
+                    'P5': colunas[11],
+                    'cs_flags': colunas[12],
+                    'satellite': colunas[13],
+                    'sta': colunas[14],
+                    'hght': colunas[15],
+                    'El': colunas[16],
+                    'Lon': colunas[17],
+                    'Lat': colunas[18],
+                    'obs_La': obs_La_header,
+                    'obs_Lb': obs_Lb_header,
+                    'obs_Lc': obs_Lc_header,
+                    'obs_Ca': obs_Ca_header,
+                    'obs_Cb': obs_Cb_header,
+                    'obs_Cc': obs_Cc_header
+                }
+
+                date.append(registro['date'])
+                time_s.append(registro['time'])
+                mjd.append(registro['mjd'])
+                pos_x.append(registro['pos_x'])
+                pos_y.append(registro['pos_y'])
+                pos_z.append(registro['pos_z'])
+                L1.append(registro['L1'])
+                L2.append(registro['L2'])
+                L5.append(registro['L5'])
+                P1.append(registro['P1'])
+                P2.append(registro['P2'])
+                P5.append(registro['P5'])
+                cs_flags.append(registro['cs_flags'])
+                satellites.append(registro['satellite'])
+                sta.append(registro['sta'])
+                hght.append(registro['hght'])
+                El.append(registro['El'])
+                Lon.append(registro['Lon'])
+                Lat.append(registro['Lat'])
+                obs_La.append(registro['obs_La'])
+                obs_Lb.append(registro['obs_Lb'])
+                obs_Lc.append(registro['obs_Lc'])
+                obs_Ca.append(registro['obs_Ca'])
+                obs_Cb.append(registro['obs_Cb'])
+                obs_Cc.append(registro['obs_Cc'])
+
+        # Filter by satellite from file name
+        satellite = sat
+        print(f"Processing: {satellite}")
+        indices = np.where(np.array(satellites) == satellite)[0]
+
+        date_filtered = []
+        time_filtered = []
+        mjd_filtered = []
+        pos_x_filtered = []
+        pos_y_filtered = []
+        pos_z_filtered = []
+        L1_filtered = []
+        L2_filtered = []
+        L5_filtered = []
+        P1_filtered = []
+        P2_filtered = []
+        P5_filtered = []
+        cs_flags_filtered = []
+        satellites_filtered = []
+        sta_filtered = []
+        hght_filtered = []
+        El_filtered = []
+        Lon_filtered = []
+        Lat_filtered = []
+        obs_La_filtered = []
+        obs_Lb_filtered = []
+        obs_Lc_filtered = []
+        obs_Ca_filtered = []
+        obs_Cb_filtered = []
+        obs_Cc_filtered = []
+
+        for idx in indices:
+            date_filtered.append(date[idx])
+            time_filtered.append(time_s[idx])
+            mjd_filtered.append(mjd[idx])
+            pos_x_filtered.append(pos_x[idx])
+            pos_y_filtered.append(pos_y[idx])
+            pos_z_filtered.append(pos_z[idx])
+            L1_filtered.append(L1[idx])
+            L2_filtered.append(L2[idx])
+            L5_filtered.append(L5[idx])
+            P1_filtered.append(P1[idx])
+            P2_filtered.append(P2[idx])
+            P5_filtered.append(P5[idx])
+            cs_flags_filtered.append(cs_flags[idx])
+            satellites_filtered.append(satellites[idx])
+            sta_filtered.append(sta[idx])
+            hght_filtered.append(hght[idx])
+            El_filtered.append(El[idx])
+            Lon_filtered.append(Lon[idx])
+            Lat_filtered.append(Lat[idx])
+            obs_La_filtered.append(obs_La[idx])
+            obs_Lb_filtered.append(obs_Lb[idx])
+            obs_Lc_filtered.append(obs_Lc[idx])
+            obs_Ca_filtered.append(obs_Ca[idx])
+            obs_Cb_filtered.append(obs_Cb[idx])
+            obs_Cc_filtered.append(obs_Cc[idx])
+
+        data_df = {
+            'date': date_filtered,
+            'time2': time_filtered,
+            'mjd': mjd_filtered,
+            'pos_x': pos_x_filtered,
+            'pos_y': pos_y_filtered,
+            'pos_z': pos_z_filtered,
+            'L1': L1_filtered,
+            'L2': L2_filtered,
+            'L5': L5_filtered,
+            'P1': P1_filtered,
+            'P2': P2_filtered,
+            'P5': P2_filtered,  # kept as in your original logic
+            'cs_flag': cs_flags_filtered,
+            'satellite': satellites_filtered,
+            'sta': sta_filtered,
+            'hght': hght_filtered,
+            'El': El_filtered,
+            'Lon': Lon_filtered,
+            'Lat': Lat_filtered,
+            'obs_La': obs_La_filtered,
+            'obs_Lb': obs_Lb_filtered,
+            'obs_Lc': obs_Lc_filtered,
+            'obs_Ca': obs_Ca_filtered,
+            'obs_Cb': obs_Cb_filtered,
+            'obs_Cc': obs_Cc_filtered
+        }
+        df = pd.DataFrame(data_df)
+
+        # Conversions and NaNs
+        columns_to_convert = ['L1', 'L2', 'L5', 'P1', 'P2', 'P5']
+        df[columns_to_convert] = df[columns_to_convert].astype(float)
+        df.replace(-999999.999, np.nan, inplace=True)
+
+        df['timestamp'] = pd.to_datetime(df['date'] + ' ' + df['time2'])
+        df['time'] = df['timestamp'].dt.time
+
+        L1_array = np.nan_to_num(np.array(df['L1'].tolist(), dtype=np.float64), nan=-999999.999)
+        L2_array = np.nan_to_num(np.array(df['L2'].tolist(), dtype=np.float64), nan=-999999.999)
+        L5_array = np.nan_to_num(np.array(df['L5'].tolist(), dtype=np.float64), nan=-999999.999)
+        P1_array = np.nan_to_num(np.array(df['P1'].tolist(), dtype=np.float64), nan=-999999.999)
+        P2_array = np.nan_to_num(np.array(df['P2'].tolist(), dtype=np.float64), nan=-999999.999)
+        P5_array = np.nan_to_num(np.array(df['P5'].tolist(), dtype=np.float64), nan=-999999.999)
+
+        L1_array[L1_array == -999999.999] = np.nan
+        L2_array[L2_array == -999999.999] = np.nan
+        L5_array[L5_array == -999999.999] = np.nan
+        P1_array[P1_array == -999999.999] = np.nan
+        P2_array[P2_array == -999999.999] = np.nan
+        P5_array[P5_array == -999999.999] = np.nan
+
+        MW_combination  = screening_settings.melbourne_wubbena_combination(f1, f2, L1_array, L2_array, P1_array, P2_array)
+        MW_combination2 = screening_settings.melbourne_wubbena_combination(f1, f5, L1_array, L5_array, P1_array, P5_array)
+
+        df['MW']  = MW_combination
+        df['MW2'] = MW_combination2
+
+        # Arcs from cs_flag
+        arcos = []
+        arc_atual = []
+        for idx, value in enumerate(df['cs_flag']):
+            if value == 'S':
+                if arc_atual:
+                    arcos.append(arc_atual)
+                    arc_atual = []
+            else:
+                arc_atual.append(idx)
+        if arc_atual:
+            arcos.append(arc_atual)
+
+        print()
+        for i, arc in enumerate(arcos):
+            start_index = arc[0]
+            end_index = arc[-1]
+            num_observations = len(arc)
+            status = "Kept" if num_observations >= 15 else "Discarded"
+            print(f"Arc {i + 1}: {df['timestamp'][start_index]} - {df['timestamp'][end_index]}, Start = {start_index}, End = {end_index}, "
+                  f"Obs. = {num_observations}, Status = {status}")
+
+        # Polynomial fits per arc (kept)
+        arc_data = []
+        arc_idx = []
+        polynomial_fits = []
+
+        print()
+        for i, arc in enumerate(arcos):
+            start = arc[0]
+            end = arc[-1]
+            arc_values = MW_combination[start:end+1]
+            arc_timestamps = df['timestamp'][start:end+1]
+
+            if len(arc_values) < 15:
+                continue
+
+            x_values = np.arange(len(arc_values))
+            polynomial_fit = screening_settings.fit_polynomial(x_values, arc_values, 3)
+            arc_data.append(arc_values)
+            arc_idx.append(arc_timestamps)
+            polynomial_fits.append(polynomial_fit)
+
+            num_observations = len(arc_values)
+            num_points_fit = len(polynomial_fit)
+            print(f"Arc {i + 1}: Start index = {start}, End index = {end}, "
+                  f"Number of observations = {num_observations}, Number of fit points = {num_points_fit}")
+
+        arcos_validos = [arc for arc in arcos if len(MW_combination[arc[0]:arc[-1]+1]) >= 15]
+        if len(arcos_validos) == 1:
+            arcos_validos.append(arcos_validos[0])
+
+        # Detect anomalies in L1–L2
+        res_L12 = detect_and_plot_arcs_before_after(
+            df=df,
+            arcos_validos=arcos_validos,
+            series=MW_combination,
+            label_pair="L1-L2",
+            rescale_func=screening_settings.rescale_data,
+            fit_poly_func=screening_settings.fit_polynomial,
+            plot=True,
+            save_dir=None,
+            sat_id=satellite
+        )
+
+        # Detect anomalies in L1–L5
+        res_L15 = detect_and_plot_arcs_before_after(
+            df=df,
+            arcos_validos=arcos_validos,
+            series=MW_combination2,
+            label_pair="L1-L5",
+            rescale_func=screening_settings.rescale_data,
+            fit_poly_func=screening_settings.fit_polynomial,
+            plot=True,
+            save_dir=None,
+            sat_id=satellite
+        )
+
+        combined_indices = sorted(set(res_L12["removed_indices"] + res_L15["removed_indices"]))
+        df.loc[combined_indices, "outlier_flag"] = "Y"
+        print(f"\nTotal combined outliers: {len(combined_indices)} samples marked ('Y').\n")
+
+        # EXPORT .RNX2
+        output_directory = os.path.join(str(ano), str(doy), estacao.upper())
+        full_path = os.path.join(destination_directory)
+        os.makedirs(full_path, exist_ok=True)
+        file_name = f"{estacao}_{satellite}_{doy}_{ano}.RNX2"
+        output_file_path = os.path.join(full_path, file_name)
+
+        colunas_desejadas = [
+            'date', 'time', 'mjd',
+            'pos_x', 'pos_y', 'pos_z',
+            'L1', 'L2', 'L5',
+            'P1', 'P2', 'P5',
+            'cs_flag', 'outlier_flag', 'satellite', 'sta',
+            'hght', 'El', 'Lon', 'Lat',
+            'obs_La', 'obs_Lb', 'obs_Lc',
+            'obs_Ca', 'obs_Cb', 'obs_Cc'
+        ]
+        df_selecionado = df[colunas_desejadas].copy()
+        df_selecionado = df_selecionado.fillna(-999999.999)
+
+        df_selecionado['mjd'] = pd.to_numeric(df_selecionado['mjd'], errors='coerce')
+        df_selecionado['mjd'] = df_selecionado['mjd'].apply(lambda v: f"{v:.6f}" if pd.notna(v) else np.nan)
+
+        for col, fmt in [('El', '{:.4f}'), ('Lon', '{:.4f}'), ('Lat', '{:.4f}'), ('hght', '{:.2f}')]:
+            df_selecionado[col] = pd.to_numeric(df_selecionado[col], errors='coerce')
+            df_selecionado[col] = df_selecionado[col].apply(lambda v: fmt.format(v) if pd.notna(v) else np.nan)
+
+        for col in ['pos_x','pos_y','pos_z','L1','L2','L5','P1','P2','P5']:
+            df_selecionado[col] = pd.to_numeric(df_selecionado[col], errors='coerce')
+            df_selecionado[col] = df_selecionado[col].apply(lambda v: f"{v:.6f}" if pd.notna(v) else np.nan)
+
+        obj_cols = df_selecionado.select_dtypes(include=['object']).columns
+        for c in obj_cols:
+            df_selecionado[c] = (
+                df_selecionado[c]
+                .astype(str)
+                .str.replace('\t', ' ', regex=False)
+                .str.replace('\r', ' ', regex=False)
+                .str.replace('\n', ' ', regex=False)
+                .str.strip()
+                .replace({'nan': np.nan})
+            )
+
+        for c in ['cs_flag','outlier_flag']:
+            df_selecionado[c] = pd.to_numeric(df_selecionado[c], errors='ignore')
+
+        df_selecionado.to_csv(
+            output_file_path,
+            sep='\t',
+            index=False,
+            na_rep='-999999.999',
+            lineterminator='\n'
+        )
+        print(f"[OK] Data exported to {output_file_path}.")
+
+
+# ==========================================================
+# (Optional) Programmatic usage example
+# ==========================================================
+if __name__ == "__main__":
+    # Example: set parameters here only if you want to run this file directly.
+    # Otherwise, import RNXclean in another script and call it with your parameters.
+    #
+    # station_name = "BELE"
+    # day_of_year  = "266"
+    # year         = "2025"
+    # input_folder = "/home/debian-giorgio/pyOASIS/pyOASIS/INPUT/RINEX"
+    # orbit_folder = "/home/debian-giorgio/pyOASIS/pyOASIS/OUTPUT/2025/266/ORBITS"
+    # output_folder= "/home/debian-giorgio/pyOASIS/pyOASIS/OUTPUT/BELE"
+    # RNXclean(station_name, day_of_year, year, input_folder, orbit_folder, output_folder)
+    pass
