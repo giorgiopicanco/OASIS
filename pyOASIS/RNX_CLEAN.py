@@ -1252,7 +1252,13 @@ def RNXScreening(destination_directory):
             )
 
         for c in ['cs_flag','outlier_flag']:
-            df_selecionado[c] = pd.to_numeric(df_selecionado[c], errors='ignore')
+            # Preserve semantics of pandas' legacy `errors='ignore'` (removed in
+            # pandas 3.0): convert the column only if every value is numeric,
+            # otherwise leave it untouched.
+            try:
+                df_selecionado[c] = pd.to_numeric(df_selecionado[c], errors='raise')
+            except (ValueError, TypeError):
+                pass
 
         df_selecionado.to_csv(
             output_file_path,
