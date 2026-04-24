@@ -574,7 +574,7 @@ def TECcalc(station: str,
             vertically reconnecting STEC and VTEC arcs, and plot STEC/VTEC/IPP.
             """
             col_names = ['sat', 'mjd', 'stec', 'lon', 'lat', 'elevation', 'azimuth', 'vtec']
-            df_plot = pd.read_csv(file_path, delim_whitespace=True, header=None, names=col_names)
+            df_plot = pd.read_csv(file_path, sep=r'\s+', header=None, names=col_names)
 
             # Convert MJD to datetime and UT hour
             df_plot['datetime'] = df_plot['mjd'].apply(mjd_to_datetime)
