@@ -335,7 +335,7 @@ def process_gf_combination(L_GF, P_GF, arcos, df, sat_class, satellite,
     }).sort_values("timestamp").set_index("timestamp")
 
     ts = df_interp.index.values.astype("datetime64[s]").astype("int64")
-    y = df_interp["L_GF"].to_numpy(dtype=float)
+    y = df_interp["L_GF"].to_numpy(dtype=float, copy=True)
     MAX_GAP_SECONDS = 30 * 60
     n = len(y)
     i = 0
