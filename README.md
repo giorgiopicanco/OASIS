@@ -49,7 +49,7 @@ python -m pip install .
 python -m pyOASIS --help
 ```
 
-**Integrated runtime:** The historical MEDUSA processing components needed by OASIS are bundled in the package. No separate MEDUSA installation or service is required. Advanced users may supply a compatible external runtime with `--medusa-root` or `OASISConfig.medusa_root`.
+**Integrated runtime:** All required GNSS processing components are bundled with OASIS. No separate processing software or external service is required.
 
 ---
 
@@ -157,7 +157,7 @@ OASIS/
 │   ├── rinex/               # RINEX reader and signal selection
 │   ├── io/                  # HDF5 export
 │   ├── visualization/       # Scientific figures
-│   └── _vendor/medusa/      # Integrated historical QC runtime
+│   └── _vendor/             # Integrated processing components
 ├── examples/
 ├── docs/
 ├── tests/
@@ -165,7 +165,7 @@ OASIS/
 └── img/
 ```
 
-The integrated MEDUSA historical runtime is located under `pyOASIS/_vendor/medusa/`.
+The integrated processing runtime is included in the Python distribution.
 
 ---
 
@@ -288,7 +288,7 @@ The following figures illustrate OASIS 2.0.0 processing for station MABB, Brazil
 
 ## Validation and Limitations
 
-The release candidate passed 55 automated regression tests in the development checkout. The wheel and source distribution were built and passed Twine checks. A separate Python 3.12 environment successfully installed the wheel and processed BOAV RINEX 2 (2023, day 049, GPS only) using an external MEDUSA runtime and matching SP3. The run completed in 76.32 seconds with 32 satellites, 5,700 epochs, 62,336 LGF samples, 62,334 valid IPPs, all seven products and eight overview figures.
+The release candidate passed 55 automated regression tests in the development checkout. The wheel and source distribution were built and passed Twine checks. A separate Python 3.12 environment successfully installed the wheel and processed BOAV RINEX 2 (2023, day 049, GPS only) using the external processing runtime and matching SP3. The run completed in 76.32 seconds with 32 satellites, 5,700 epochs, 62,336 LGF samples, 62,334 valid IPPs, all seven products and eight overview figures.
 
 | Product | Records in BOAV integration test |
 | --- | ---: |
@@ -300,7 +300,7 @@ The release candidate passed 55 automated regression tests in the development ch
 | VTEC | 40,043 |
 | DTEC | 20,750 |
 
-The run completed with warnings: 3,731 negative model STEC estimates were preserved and flagged as nonphysical. Absolute STEC/VTEC calibration and dTEC scientific interpretation require independent validation. A successful integration test is not evidence of absolute TEC accuracy. Compiled MEDUSA/RTKLIB geometry parity and historical versus live MEDUSA QC context parity also remain to be independently established. The GPS-only wheel test does not establish end-to-end performance for every constellation or dataset. An additional development-checkout integration test using the bundled runtime (without `--medusa-root`) reproduced all seven BOAV product record counts and the same STEC warning. The integrated checkout passed 57 regression tests, including two tests of automatic runtime resolution and QC imports.
+The run completed with warnings: 3,731 negative model STEC estimates were preserved and flagged as nonphysical. Absolute STEC/VTEC calibration and dTEC scientific interpretation require independent validation. A successful integration test is not evidence of absolute TEC accuracy. Independent numerical validation of the geometry implementation and historical versus real-time QC consistency remains pending. The GPS-only wheel test does not establish end-to-end performance for every constellation or dataset. An additional development-checkout integration test using the bundled runtime with automatic configuration reproduced all seven BOAV product record counts and the same STEC warning. The integrated checkout passed 57 regression tests, including two tests of automatic runtime resolution and QC imports.
 
 Run regression tests from the source checkout with `python -m unittest discover -s tests -v` . Historical methodology notes in `docs/` describe earlier stages; current output conventions are documented above.
 
