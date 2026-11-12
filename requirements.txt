@@ -1,7 +1,6 @@
 numpy
-pandas
-matplotlib
 scipy
-astropy
-georinex
-pyproj
+pandas
+h5py
+matplotlib
+requests

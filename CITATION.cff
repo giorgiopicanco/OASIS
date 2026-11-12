@@ -30,10 +30,9 @@ authors:
     given-names: Emmanuel
   - family-names: Muella
     given-names: Maria T. A. H.
-date-released: 2025-04-30
-version: "1.0.0"
+version: "2.0.0"
 repository-code: https://github.com/giorgiopicanco/OASIS
-license: MIT
+license: CC-BY-NC-4.0
 type: software
 abstract: >
   OASIS is a modular open-access system for processing GNSS data and computing ionospheric indices,

@@ -1,3 +1,56 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyOASIS"
+version = "2.0.0"
+description = "Open-Access System for Ionospheric Studies"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "CC-BY-NC-4.0"
+license-files = ["LICENSE"]
+
+authors = [
+    {name = "Giorgio A. S. Picanço", email = "giorgiopicanco@gmail.com"}
+]
+
+dependencies = [
+    "numpy",
+    "scipy",
+    "pandas",
+    "h5py",
+    "matplotlib",
+    "requests"
+]
+
+keywords = [
+    "GNSS",
+    "ionosphere",
+    "space weather",
+    "TEC",
+    "ROTI",
+    "RINEX",
+    "geophysics"
+]
+
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Atmospheric Science"
+]
+
+[project.urls]
+Homepage = "https://github.com/giorgiopicanco/OASIS"
+Repository = "https://github.com/giorgiopicanco/OASIS"
+Issues = "https://github.com/giorgiopicanco/OASIS/issues"
+
+[project.scripts]
+pyoasis = "pyOASIS.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pyOASIS*"]
+namespaces = true

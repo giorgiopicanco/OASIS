@@ -1,29 +1,55 @@
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
 *.py[cod]
-*$py.class
-
-# Caches and logs
-*.log
-*.tmp
-
-# Jupyter Notebook Checkpoints
+.pytest_cache/
 .ipynb_checkpoints/
 
 # Virtual environments
+.venv/
 venv/
+.env
 .env/
 
-# Data files
+# Distribution
+build/
+dist/
+*.egg-info/
+
+# Processing outputs
+OUTPUT/
+*.h5
+*.hdf5
+*_GEOMETRY_AUDIT.csv
+*_RUN_REPORT.json
+BATCH_*.csv
+
+# Local data and temporary files
 *.zip
 *.tar
 *.gz
 *.nc
-*.h5
-*.shp
-*.dbf
-*.shx
+*.log
+*.tmp
+*.bak
 
-# System files
+# Backups and patches
+_backup_*/
+_patch_*/
+_stage*/
+
+# Credentials
+.netrc
+_netrc
+
+# Operating system
 .DS_Store
 Thumbs.db
+
+# Internal validation
+docs/*_validation/
+
+# Third-party sources pending redistribution review
+/references/
+
+# Internal source inventory
+/SOURCE_MANIFEST.csv

@@ -1,12 +1,7 @@
-from .gnss_freqs import *
-from .settings import *
-from .screening_settings import *
-from .linear_combinations import *
+"""OASIS - Open-Access System for Ionospheric Studies."""
 
-from .ROTI_CALC import ROTIcalc
-from .DTEC_CALC import DTECcalc
-from .SIDX_CALC import SIDXcalc
-from .RNX_CLEAN import RNXclean
-from .SP3_INTERPOLATE import SP3intp
-from .RNX_LEVELLING import RNXlevelling
-from .TEC_CAL import TECcalc
+from .api import OASISConfig, process
+
+__version__ = "2.0.0"
+
+__all__ = ["OASISConfig", "process", "__version__"]

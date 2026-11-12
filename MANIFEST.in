@@ -1,5 +1,16 @@
-include requirements.txt
 include README.md
 include LICENSE
 include CITATION.cff
-include pyOASIS/glonass_channels.dat
+include requirements.txt
+recursive-include pyOASIS *.py
+recursive-include tests *.py
+recursive-include examples *.py
+include docs/*.md
+
+prune references
+prune INPUT
+prune OUTPUT
+
+global-exclude *.pyc
+global-exclude *.pyo
+global-exclude *.bak

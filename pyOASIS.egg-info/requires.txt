@@ -1,7 +1,0 @@
-astropy
-georinex
-matplotlib
-numpy
-pandas
-pyproj
-scipy
