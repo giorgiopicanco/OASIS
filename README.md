@@ -337,7 +337,7 @@ The original manuscript citation is retained from the historical README; its cur
 
 ## Acknowledgments
 
-OASIS incorporates historical processing components from MEDUSA. The package does not require the Bernese GNSS Software executable or a Bernese installation. The original MEDUSA source provenance and references to Bernese-compatible and ported routines are retained; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+OASIS integrates GNSS quality control, precise-orbit geometry, ionospheric product generation, and scientific visualization within a unified Python framework. Integrated component provenance and applicable licensing notices are documented in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ---
 
