@@ -40,7 +40,7 @@ def daily_output_dir(root, station, year, doy):
 
 
 def build_parser():
-    p = argparse.ArgumentParser(description='pyOASIS Stage 24: RNX_QC, LGF, SP3 geometry, MEDUSA V6 ROTI, OASIS products and optional figures')
+    p = argparse.ArgumentParser(description='OASIS: Open-Access System for Ionospheric Studies')
     p.add_argument('--rinex', required=True, type=Path, help='RINEX 2/3 observation file')
     p.add_argument('--sp3', type=Path, default=None,
                    help='Explicit matching SP3 path. If omitted, resolve by RINEX date in --orbit-dir.')
@@ -263,7 +263,7 @@ def run(args):
     _progress(f'[OUTPUT] Daily directory: {output_dir.resolve()}', enabled=verbose)
     if args.save_output == 'hdf5' and dest.exists() and not args.overwrite_output:
         raise FileExistsError(f'HDF5 exists: {dest}. Use --overwrite-output or a different output directory.')
-    _progress('[STEP 3/8] Running RNX_QC (original MEDUSA): signal selection, QC, arcs and LGF leveling', enabled=verbose)
+    _progress('[STEP 3/8] Running RNX_QC: signal selection, QC, arcs and LGF leveling', enabled=verbose)
     t_b111 = time.perf_counter()
     qc = run_rnx_qc(args.rinex, args.medusa_root, systems=args.systems,
                   glonass_channels=channels, observations=observations)
@@ -327,7 +327,7 @@ def run(args):
         _progress('[STEP 5/8] ROTI not requested', enabled=verbose)
     if 'ROTI' in args.products:
         from pyOASIS.gnss.medusa_roti_adapter import compute_medusa_roti
-        _progress('[STEP 5/8] Computing original MEDUSA ION V6 ROTI (150 s) from leveled phase LGF', enabled=verbose)
+        _progress('[STEP 5/8] Computing ROTI (150 s) from leveled phase LGF', enabled=verbose)
         t_roti=time.perf_counter()
         roti_rows,roti_stats=compute_medusa_roti(geo)
         report['products']['ROTI'] = len(roti_rows)

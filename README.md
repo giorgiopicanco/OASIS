@@ -8,14 +8,14 @@
 
 **OASIS** is a modular, open-access Python toolbox for processing multi-frequency GNSS data and computing ionospheric indices. It was developed to promote scientific transparency and reproducibility in ionospheric research.
 
-OASIS provides a Python workflow for processing dual-frequency GNSS observations and deriving ionospheric products. Version 2.0 introduces a new processing API, native RINEX ingestion, integration with the MEDUSA historical quality-control engine, precise-orbit geometry, and consolidated HDF5 outputs. It is not API-compatible with the 1.x series.
+OASIS provides a Python workflow for processing dual-frequency GNSS observations and deriving ionospheric products. Version 2.0 introduces a new processing API, native RINEX ingestion, integrated GNSS quality control, precise-orbit geometry, and consolidated HDF5 outputs. It is not API-compatible with the 1.x series.
 
 ---
 
 ## Key Features
 
 - RINEX 2 and 3 observation processing; GPS, GLONASS, Galileo and BeiDou (subject to available signals and orbit coverage).
-- RNX_QC: signal selection, outlier and cycle-slip screening, arc definition and geometry-free phase leveling through the integrated MEDUSA historical B111 runtime.
+- RNX_QC: signal selection, outlier and cycle-slip screening, arc definition and geometry-free phase leveling through the integrated RNX_QC engine.
 - SP3 orbit interpolation at signal transmission time, elevation, azimuth and ionospheric pierce points (350 km shell).
 - Automatic orbit resolution with a local cache and optional NASA CDDIS download; Earthdata authentication may be required.
 - Seven scientific products: LGF, ROTI, DELTATEC, SIDX, STEC, VTEC and detrended TEC (dTEC).
@@ -80,7 +80,7 @@ OASIS can resolve a matching orbit file from its local cache or download it when
 ## Workflow Summary
 
 1. **Input:** Read RINEX observations and resolve precise SP3 orbits.
-2. **RNX_QC:** Select dual-frequency signals, screen outliers and cycle slips, define arcs and level geometry-free phase using the compatible MEDUSA runtime.
+2. **RNX_QC:** Select dual-frequency signals, screen outliers and cycle slips, define arcs and level geometry-free phase using the integrated RNX_QC engine.
 3. **Orbit Interpolation and IPP:** Compute satellite geometry at transmission time and IPPs on a 350 km shell.
 4. **Index Derivation:** Compute ROTI, ΔTEC and SIDX from eligible observations.
 5. **TEC Calibration:** Estimate experimental STEC and VTEC, then derive detrended VTEC (dTEC).
@@ -132,7 +132,7 @@ The repository also contains `main.py`, `main_sequential.py`, `main_rbmc_rinex2.
 | Key | Description |
 | --- | --- |
 | LGF | Carrier-phase geometry-free combination, corrected and leveled to code by accepted arcs. |
-| ROTI | Population standard deviation of ROT in fixed UTC 150-second MEDUSA ION V6 windows, with QC and continuity screening. |
+| ROTI | Population standard deviation of ROT in fixed UTC 150-second windows, with QC and continuity screening. |
 | DELTATEC | Legacy OASIS ΔTEC index: scaled short/long rolling-mean difference within 150-second windows. It is a scaled TEC amplitude, not a physical time derivative. |
 | SIDX | Mean absolute ROT in 60-second windows; constellation-level plots use mTECU/s. |
 | STEC | Experimental model-calibrated slant TEC with per-arc offsets. |
