@@ -14,3 +14,7 @@ prune OUTPUT
 global-exclude *.pyc
 global-exclude *.pyo
 global-exclude *.bak
+
+include main.py main_sequential.py main_rbmc_rinex2.py run_oasis_grec.py
+include THIRD_PARTY_NOTICES.md
+recursive-include img *.png

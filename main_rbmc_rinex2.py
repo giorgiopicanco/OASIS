@@ -6,6 +6,7 @@ import time
 import traceback
 from pathlib import Path
 from pyOASIS.api import OASISConfig, process
+from pyOASIS.runtime import bundled_medusa_root
 
 # DIRECTORIES
 ROOT = Path(__file__).resolve().parent
@@ -14,7 +15,7 @@ YEAR = 2025
 DOY = "316"
 DATE = "2025-11-12"
 RINEX_DIR = OASIS_ROOT / "RBMC" / str(YEAR) / DOY / "RINEX2"
-MEDUSA_ROOT = ROOT / "references" / "MEDUSA"
+MEDUSA_ROOT = bundled_medusa_root()
 ORBIT_DIR = OASIS_ROOT / "INPUT" / "ORBITS"
 GLONASS_CHANNELS = ORBIT_DIR / f"GLONASS_CHANNELS_{YEAR}_{DOY}.json"
 OUTPUT_DIR = ROOT / "OUTPUT" / "RBMC" / "RINEX2"

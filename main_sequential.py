@@ -33,7 +33,7 @@ def main():
         config = OASISConfig(
             # INPUT AND OUTPUT
             rinex=rinex_file,
-            medusa_root=ROOT / "references/MEDUSA",
+
             orbit_dir=ROOT.parent / "INPUT/ORBITS",
             output_dir=ROOT / "OUTPUT",
             offline=False,

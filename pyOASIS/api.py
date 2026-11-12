@@ -12,8 +12,8 @@ SUPPORTED_PRODUCTS = frozenset({'LGF','ROTI','DELTATEC','SIDX','STEC','VTEC','DT
 @dataclass(frozen=True)
 class OASISConfig:
     rinex: Path
-    medusa_root: Path
-    orbit_dir: Path
+    medusa_root: Path | None = None
+    orbit_dir: Path = Path('INPUT/ORBITS')
     output_dir: Path = Path('OUTPUT')
     systems: str = 'GREC'
     products: tuple[str, ...] = ('LGF',)
@@ -45,12 +45,14 @@ def process(config: OASISConfig) -> dict:
     products = tuple(p.replace("Δ", "DELTA").upper() for p in config.products)
     if not products or not set(products).issubset(SUPPORTED_PRODUCTS | {'ALL','TEC'}):
         raise ValueError(f'Available products: {sorted(SUPPORTED_PRODUCTS)}; ALL and TEC aliases are supported.')
-    args = ['--rinex', str(config.rinex), '--medusa-root', str(config.medusa_root),
+    args = ['--rinex', str(config.rinex),
             '--orbit-dir', str(config.orbit_dir), '--out', str(config.output_dir),
             '--systems', config.systems,
             '--products', ','.join(products),
             '--save-output', 'hdf5' if config.save_hdf5 else 'none',
             '--figure-dpi', str(config.figure_dpi), '--plot-min-elevation', str(config.plot_min_elevation)]
+    if config.medusa_root is not None:
+        args += ['--medusa-root', str(config.medusa_root)]
     args += ['--mean-min-satellites', str(config.mean_min_satellites), '--mean-method', config.mean_method, '--product-figure-color-mode', config.product_figure_color_mode]
     if not config.mean_line:
         args.append('--no-mean-line')

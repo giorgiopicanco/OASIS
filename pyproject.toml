@@ -9,7 +9,7 @@ description = "Open-Access System for Ionospheric Studies"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "CC-BY-NC-4.0"
-license-files = ["LICENSE"]
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 
 authors = [
     {name = "Giorgio A. S. Picanço", email = "giorgiopicanco@gmail.com"}

@@ -15,7 +15,7 @@ OASIS provides a Python workflow for processing dual-frequency GNSS observations
 ## Key Features
 
 - RINEX 2 and 3 observation processing; GPS, GLONASS, Galileo and BeiDou (subject to available signals and orbit coverage).
-- RNX_QC: signal selection, outlier and cycle-slip screening, arc definition and geometry-free phase leveling through the external MEDUSA historical B111 runtime.
+- RNX_QC: signal selection, outlier and cycle-slip screening, arc definition and geometry-free phase leveling through the integrated MEDUSA historical B111 runtime.
 - SP3 orbit interpolation at signal transmission time, elevation, azimuth and ionospheric pierce points (350 km shell).
 - Automatic orbit resolution with a local cache and optional NASA CDDIS download; Earthdata authentication may be required.
 - Seven scientific products: LGF, ROTI, DELTATEC, SIDX, STEC, VTEC and detrended TEC (dTEC).
@@ -26,7 +26,13 @@ OASIS provides a Python workflow for processing dual-frequency GNSS observations
 
 ## Installation
 
-The instructions below apply to the updated source checkout once it is available. Version 2.0.0 is currently a release candidate; the existing PyPI package may still contain the older version.
+For the published 2.0.0 distribution, install with:
+
+```bash
+python -m pip install pyOASIS==2.0.0
+```
+
+If version 2.0.0 is not yet available on PyPI, install from the updated source checkout as shown below.
 
 Python 3.12 on Windows has been tested for the release candidate. The package metadata declares Python >=3.10; other Python versions and operating systems are not covered by this end-to-end test.
 
@@ -43,7 +49,7 @@ python -m pip install .
 python -m pyOASIS --help
 ```
 
-**External runtime requirement:** The Python distribution (wheel and source distribution) does not include the MEDUSA historical runtime. Full RINEX processing requires a compatible, legitimately obtained MEDUSA source tree containing `tools/historical/b111/`. Supply its root explicitly using `--medusa-root` or `OASISConfig.medusa_root`. No MEDUSA service needs to be started. Availability and redistribution of that source are subject to its own rights and permissions. Do not assume the existing PyPI release contains this version.
+**Integrated runtime:** The historical MEDUSA processing components needed by OASIS are bundled in the package. No separate MEDUSA installation or service is required. Advanced users may supply a compatible external runtime with `--medusa-root` or `OASISConfig.medusa_root`.
 
 ---
 
@@ -51,7 +57,6 @@ python -m pyOASIS --help
 
 - Python 3.10 or higher (declared minimum; Python 3.12 tested).
 - `numpy`, `scipy`, `pandas`, `h5py`, `matplotlib`, `requests`.
-- Compatible external MEDUSA historical runtime for full RINEX processing.
 
 Install Python dependencies with `python -m pip install -r requirements.txt`.
 
@@ -85,10 +90,10 @@ OASIS can resolve a matching orbit file from its local cache or download it when
 
 ## How to Run
 
-Provide a daily RINEX observation file, a matching SP3 orbit file (or a cache directory), and the compatible MEDUSA runtime. The following command uses example paths; adjust them to your files. GPS-only processing avoids the need for an external GLONASS FDMA table.
+Provide a daily RINEX observation file, and a matching SP3 orbit file (or a cache directory). The following command uses example paths; adjust them to your files. GPS-only processing avoids the need for an external GLONASS FDMA table.
 
 ```bash
-python -m pyOASIS --rinex INPUT/RINEX/boav0491.23o --sp3 INPUT/ORBITS/GFZ0MGXRAP_20230490000_01D_05M_ORB.SP3 --medusa-root /path/to/MEDUSA --systems G --products ALL --save-output hdf5 --figures --no-download --out OUTPUT
+python -m pyOASIS --rinex INPUT/RINEX/boav0491.23o --sp3 INPUT/ORBITS/GFZ0MGXRAP_20230490000_01D_05M_ORB.SP3 --systems G --products ALL --save-output hdf5 --figures --no-download --out OUTPUT
 ```
 
 For multi-GNSS processing use `--systems GREC`. Only observed constellations with usable inputs can be processed; `--require-grec` enforces all four. GLONASS FDMA channels must be known for the observation epoch. A valid RINEX header takes precedence over the optional `--glonass-channels /path/to/channels.json` fallback. Do not use an unverified static table.
@@ -103,7 +108,6 @@ from pyOASIS import OASISConfig, process
 
 config = OASISConfig(
     rinex=Path('INPUT/RINEX/boav0491.23o'),
-    medusa_root=Path('/path/to/MEDUSA'),
     orbit_dir=Path('INPUT/ORBITS'),
     output_dir=Path('OUTPUT'),
     systems='G',
@@ -119,7 +123,7 @@ config = OASISConfig(
 result = process(config)
 ```
 
-The repository also contains `main.py`, `main_sequential.py`, `main_rbmc_rinex2.py` and `examples/process_day.py`. Edit the input paths, dates, orbit cache, external MEDUSA path and GLONASS table as appropriate before running. The RBMC batch example skips stations with existing HDF5 outputs when overwrite is disabled, reports per-station failures and continues processing. A specific insufficient-observations OFFSET error rejects the affected QC segment instead of terminating the entire station; unrelated exceptions remain visible.
+The repository also contains `main.py`, `main_sequential.py`, `main_rbmc_rinex2.py` and `examples/process_day.py`. Edit the input paths, dates, orbit cache and GLONASS table as appropriate before running. The RBMC batch example skips stations with existing HDF5 outputs when overwrite is disabled, reports per-station failures and continues processing. A specific insufficient-observations OFFSET error rejects the affected QC segment instead of terminating the entire station; unrelated exceptions remain visible.
 
 ---
 
@@ -152,7 +156,8 @@ OASIS/
 │   ├── gnss/                # QC adapters, orbits and ionospheric products
 │   ├── rinex/               # RINEX reader and signal selection
 │   ├── io/                  # HDF5 export
-│   └── visualization/       # Scientific figures
+│   ├── visualization/       # Scientific figures
+│   └── _vendor/medusa/      # Integrated historical QC runtime
 ├── examples/
 ├── docs/
 ├── tests/
@@ -160,7 +165,7 @@ OASIS/
 └── img/
 ```
 
-The external MEDUSA runtime is not part of the Python distribution.
+The integrated MEDUSA historical runtime is located under `pyOASIS/_vendor/medusa/`.
 
 ---
 
@@ -199,90 +204,87 @@ python -m pyOASIS inspect-hdf5 --input OUTPUT/BOAV/2023/049/BOAV_2023_049_ION.h5
 
 ## Scientific Examples
 
-The following figures were generated using OASIS 2.0.0 for station APS1 (Brazil) on November 12, 2025 (DOY 316), during a severe geomagnetic storm.
-
-The observations include GPS (blue), GLONASS (red), and Galileo (green), illustrating the multi-GNSS capabilities of the toolbox.
+The following figures illustrate OASIS 2.0.0 processing for station MABB, Brazil, on November 12, 2025 (DOY 316), during the severe geomagnetic storm. Constellations are identified by the legends in the figures.
 
 ### Geometry-Free Leveling (LGF)
 
 <p align="center">
-  <img src="img/v2.0/APS1_316_2025_LGF.png" alt="Geometry-Free Leveling" width="900"/>
+  <img src="img/v2.0/MABB_316_2025_LGF.png" alt="Geometry-Free Leveling (LGF)" width="900"/>
 </p>
 
-*Arc-wise leveled geometry-free carrier-phase combinations obtained after RNX_QC processing.*
+*Arc-wise leveled geometry-free carrier-phase combinations after RNX_QC.*
 
 ---
 
 ### Rate of TEC Index (ROTI)
 
 <p align="center">
-  <img src="img/v2.0/APS1_316_2025_ROTI.png" alt="ROTI" width="900"/>
+  <img src="img/v2.0/MABB_316_2025_ROTI.png" alt="Rate of TEC Index (ROTI)" width="900"/>
 </p>
 
-*ROTI computed over fixed 150-second windows. Enhanced values during the first hours of the day indicate intense ionospheric irregularities.*
+*ROTI calculated over fixed 150-second windows.*
 
 ---
 
 ### TEC Anomaly Index (ΔTEC)
 
 <p align="center">
-  <img src="img/v2.0/APS1_316_2025_deltaTEC.png" alt="Delta TEC" width="900"/>
+  <img src="img/v2.0/MABB_316_2025_deltaTEC.png" alt="TEC Anomaly Index (ΔTEC)" width="900"/>
 </p>
 
-*The experimental OASIS ΔTEC index highlights positive and negative ionospheric disturbances using a scaled short- and long-window difference.*
+*Legacy OASIS scaled short/long rolling-mean difference within 150-second windows.*
 
 ---
 
 ### Sudden Ionospheric Disturbance Index (SIDX)
 
 <p align="center">
-  <img src="img/v2.0/APS1_316_2025_SIDX.png" alt="SIDX" width="900"/>
+  <img src="img/v2.0/MABB_316_2025_SIDX.png" alt="Sudden Ionospheric Disturbance Index (SIDX)" width="900"/>
 </p>
 
-*Experimental constellation-wise SIDX time series derived from the mean absolute rate of TEC over 60-second intervals.*
+*Mean absolute ROT over 60-second windows, displayed by constellation.*
 
 ---
 
 ### Slant Total Electron Content (STEC)
 
 <p align="center">
-  <img src="img/v2.0/APS1_316_2025_STEC.png" alt="STEC" width="900"/>
+  <img src="img/v2.0/MABB_316_2025_STEC.png" alt="Slant Total Electron Content (STEC)" width="900"/>
 </p>
 
-*Experimental model-calibrated slant TEC along individual satellite-receiver paths.*
+*Experimental model-calibrated slant TEC along satellite-receiver paths.*
 
 ---
 
 ### Vertical Total Electron Content (VTEC)
 
 <p align="center">
-  <img src="img/v2.0/APS1_316_2025_VTEC.png" alt="VTEC" width="900"/>
+  <img src="img/v2.0/MABB_316_2025_VTEC.png" alt="Vertical Total Electron Content (VTEC)" width="900"/>
 </p>
 
-*Experimental vertical TEC obtained using a thin-shell mapping function. The absolute calibration remains subject to independent validation.*
+*Experimental vertical TEC obtained using thin-shell mapping; absolute calibration requires independent validation.*
 
 ---
 
 ### Detrended TEC (dTEC)
 
 <p align="center">
-  <img src="img/v2.0/APS1_316_2025_dTEC.png" alt="Detrended TEC" width="900"/>
+  <img src="img/v2.0/MABB_316_2025_dTEC.png" alt="Detrended TEC (dTEC)" width="900"/>
 </p>
 
-*Experimental detrended VTEC obtained by removing a centered 15-minute Savitzky-Golay background from eligible continuous observation segments.*
+*Experimental detrended VTEC after removal of a centered 15-minute Savitzky–Golay background.*
 
 ---
 
 ### Ionospheric Pierce Points (IPP)
 
 <p align="center">
-  <img src="img/v2.0/APS1_316_2025_IPP_350KM.png" alt="Ionospheric Pierce Points" width="900"/>
+  <img src="img/v2.0/MABB_316_2025_IPP_350KM.png" alt="Ionospheric Pierce Points (IPP)" width="900"/>
 </p>
 
-*Multi-GNSS ionospheric pierce-point trajectories computed at an altitude of 350 km using precise SP3 satellite orbits. Numerical parity with the original MEDUSA C++ implementation remains to be established.*
+*Satellite-receiver ionospheric pierce-point trajectories computed on a 350 km shell.*
 
 ---
-
 
 ## Validation and Limitations
 
@@ -298,9 +300,9 @@ The release candidate passed 55 automated regression tests in the development ch
 | VTEC | 40,043 |
 | DTEC | 20,750 |
 
-The run completed with warnings: 3,731 negative model STEC estimates were preserved and flagged as nonphysical. Absolute STEC/VTEC calibration and dTEC scientific interpretation require independent validation. A successful integration test is not evidence of absolute TEC accuracy. Compiled MEDUSA/RTKLIB geometry parity and historical versus live MEDUSA QC context parity also remain to be independently established. The GPS-only wheel test does not establish end-to-end performance for every constellation or dataset.
+The run completed with warnings: 3,731 negative model STEC estimates were preserved and flagged as nonphysical. Absolute STEC/VTEC calibration and dTEC scientific interpretation require independent validation. A successful integration test is not evidence of absolute TEC accuracy. Compiled MEDUSA/RTKLIB geometry parity and historical versus live MEDUSA QC context parity also remain to be independently established. The GPS-only wheel test does not establish end-to-end performance for every constellation or dataset. An additional development-checkout integration test using the bundled runtime (without `--medusa-root`) reproduced all seven BOAV product record counts and the same STEC warning. The integrated checkout passed 57 regression tests, including two tests of automatic runtime resolution and QC imports.
 
-Run regression tests from the source checkout with `python -m unittest discover -s tests -v` and a compatible external runtime available as required by the tests. Historical methodology notes in `docs/` describe earlier stages; current output conventions are documented above.
+Run regression tests from the source checkout with `python -m unittest discover -s tests -v` . Historical methodology notes in `docs/` describe earlier stages; current output conventions are documented above.
 
 ---
 
@@ -335,7 +337,7 @@ The original manuscript citation is retained from the historical README; its cur
 
 ## Acknowledgments
 
-Acknowledge MEDUSA and the associated scientific methods when using the integrated workflow. MEDUSA and Bernese-related components and source excerpts are subject to their respective rights; the OASIS license does not grant rights to third-party materials. Redistribution of those components must be authorized by the relevant rights holders.
+OASIS incorporates historical processing components from MEDUSA. The package does not require the Bernese GNSS Software executable or a Bernese installation. The original MEDUSA source provenance and references to Bernese-compatible and ported routines are retained; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ---
 

@@ -9,6 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import ast
+from importlib import import_module
+from ..runtime import bundled_medusa_root
 import re
 from types import SimpleNamespace
 import sys
@@ -108,10 +110,17 @@ def _core(medusa_root):
     root = Path(medusa_root).resolve()
     if not (root / 'tools' / 'historical' / 'b111' / 'rinex_driver.py').is_file():
         raise FileNotFoundError(f'MEDUSA B111 not found under {root}')
-    if str(root) not in sys.path:
-        sys.path.insert(0, str(root))
-    from tools.historical.b111.rinex_driver import (build_rinex_combinations_from_stream, run_b111_rinex_qc)
-    from tools.historical.b111.screening import bernese_offset
+    if root == bundled_medusa_root().resolve():
+        prefix = 'pyOASIS._vendor.medusa.tools.historical.b111'
+    else:
+        if str(root) not in sys.path:
+            sys.path.insert(0, str(root))
+        prefix = 'tools.historical.b111'
+    driver = import_module(prefix + '.rinex_driver')
+    screening = import_module(prefix + '.screening')
+    build_rinex_combinations_from_stream = driver.build_rinex_combinations_from_stream
+    run_b111_rinex_qc = driver.run_b111_rinex_qc
+    bernese_offset = screening.bernese_offset
     B111_CONFIG = _medusa_original_config(root, bernese_offset)
     choose_combination = _medusa_original_chooser(root)
     return (build_rinex_combinations_from_stream, run_b111_rinex_qc,
@@ -404,7 +413,7 @@ def run_b111(rinex_path, medusa_root, *, systems='GREC', config=None, glonass_ch
             raise ValueError(f'Unknown B111 settings: {sorted(unknown)}')
         cfg.update(config)
     cfg['offset_func'] = offset
-    from tools.historical.b111.rinex_driver import build_rinex_updarc
+    build_rinex_updarc = import_module(builder.__module__).build_rinex_updarc
     out, skipped = {}, {}
     n = len(obs.times)
     for sat in obs.satellites:

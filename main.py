@@ -26,7 +26,6 @@ def main():
             "CHPI00BRA_R_20251200000_01D_30S_MO.rnx"
         ),
 
-        medusa_root=ROOT / "references/MEDUSA",
         orbit_dir=ROOT.parent / "INPUT/ORBITS",
         output_dir=ROOT / "OUTPUT",
         offline=True,

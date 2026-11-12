@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import numpy as np
 from pyOASIS.gnss.rnx_qc import satellite_key
+from pyOASIS.runtime import bundled_medusa_root
 
 
 FIGURE_PRODUCTS = frozenset({'LGF','ROTI','DELTATEC','SIDX','STEC','VTEC','DTEC','IPP'})
@@ -55,7 +56,8 @@ def build_parser():
     p.add_argument('--orbit-prefix', choices=['GFZ0MGXRAP', 'JAX0MGXFIN'],
                    default=None, help='Override automatic orbit product prefix')
     p.add_argument('--medusa-root', type=Path,
-                   default=Path('references/MEDUSA'))
+                   default=bundled_medusa_root(),
+                   help='Optional external MEDUSA override; defaults to the bundled runtime')
     p.add_argument('--systems', default='GREC', help='Request G/R/E/C jointly (default GREC). Missing input constellations are reported, not invented.')
     p.add_argument('--require-grec', action='store_true', help='Fail if the RINEX/RNX_QC lacks ANY of G,R,E,C; never claim GPS-only as GREC')
     p.add_argument('--glonass-channels', type=Path, default=None, help='Optional GLONASS FDMA fallback (RINEX 2/3). RINEX 3 header always wins.')

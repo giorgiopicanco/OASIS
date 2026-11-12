@@ -12,7 +12,7 @@ def main():
     root = Path(__file__).resolve().parents[1]
     config = OASISConfig(
         rinex=root / 'INPUT/RINEX/CHPI00BRA_R_20251200000_01D_30S_MO.rnx',
-        medusa_root=root / 'references/MEDUSA',
+
         orbit_dir=root / 'INPUT/ORBITS',
         output_dir=root / 'OUTPUT',
         systems='GREC',
